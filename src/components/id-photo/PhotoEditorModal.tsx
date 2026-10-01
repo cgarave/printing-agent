@@ -80,13 +80,31 @@ export default function PhotoEditorModal({
     }
   );
 
+  // Frame size mode (2x2, passport, or 1x1)
+  const [frameMode, setFrameMode] = useState<'2x2' | 'passport' | '1x1'>(() => {
+    if (initialData?.customCounts.passport && !initialData?.customCounts['2x2']) {
+      return 'passport';
+    }
+    if (initialData?.customCounts['1x1'] && !initialData?.customCounts['2x2'] && !initialData?.customCounts.passport) {
+      return '1x1';
+    }
+    return '2x2';
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Sync preset changes to counts
+  // Sync preset changes to counts & frame mode
   const handlePresetSelect = (preset: PackagePreset) => {
     setSelectedPresetId(preset.id);
     setCustomCounts({ ...preset.counts });
+    if (preset.counts.passport > 0 && preset.counts['2x2'] === 0) {
+      setFrameMode('passport');
+    } else if (preset.counts['1x1'] > 0 && preset.counts['2x2'] === 0 && preset.counts.passport === 0) {
+      setFrameMode('1x1');
+    } else {
+      setFrameMode('2x2');
+    }
   };
 
   const handleCustomCountChange = (size: PhotoSize, delta: number) => {
@@ -142,12 +160,29 @@ export default function PhotoEditorModal({
     }
   };
 
-  // Render cropped photo onto high-res canvas
+  // Render cropped photo onto high-res canvas with pure white frame background
   const renderCroppedImage = (): string => {
     const canvas = document.createElement('canvas');
-    // High-res 2x2 inches at 300 DPI is 600x600 px
-    canvas.width = 600;
-    canvas.height = 600;
+    let targetWidth = 600;
+    let targetHeight = 600;
+    let framePixelW = 320;
+    let framePixelH = 320;
+
+    if (frameMode === 'passport') {
+      // 35mm x 45mm (7:9 ratio) at 300 DPI: 560 x 720 px for crisp metric output
+      targetWidth = 560;
+      targetHeight = 720;
+      framePixelW = 280;
+      framePixelH = 360;
+    } else if (frameMode === '1x1') {
+      targetWidth = 600;
+      targetHeight = 600;
+      framePixelW = 280;
+      framePixelH = 280;
+    }
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return processedPreview || imageSrc || '';
 
@@ -157,20 +192,22 @@ export default function PhotoEditorModal({
     const img = new Image();
     img.src = activeImageSrc;
 
-    // Fill white background as default base
+    // 1. Fill solid pure white background from the frame as base
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.translate(canvas.width / 2 + panX * 2, canvas.height / 2 + panY * 2);
+    // Scale panning proportional to screen frame size
+    const panScaleX = targetWidth / framePixelW;
+    const panScaleY = targetHeight / framePixelH;
+    ctx.translate(canvas.width / 2 + panX * panScaleX, canvas.height / 2 + panY * panScaleY);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(zoom, zoom);
 
     // Center image
-    const w = img.width || 600;
-    const h = img.height || 600;
-    // Scale to fit canvas maintaining aspect ratio
-    const scale = Math.max(canvas.width / w, canvas.height / h);
+    const w = img.width || targetWidth;
+    const h = img.height || targetHeight;
+    const scale = Math.max(targetWidth / w, targetHeight / h);
     const drawW = w * scale;
     const drawH = h * scale;
 
@@ -266,15 +303,78 @@ export default function PhotoEditorModal({
                 className="hidden"
               />
             </div>
+            {/* Frame Size Selector: 2x2 vs Passport vs 1x1 */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-bold text-slate-600 px-2 shrink-0">
+                Frame Format:
+              </span>
+              <div className="flex items-center gap-1 w-full">
+                <button
+                  type="button"
+                  onClick={() => setFrameMode('2x2')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
+                    frameMode === '2x2'
+                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  2×2" Frame (51×51 mm)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFrameMode('passport')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
+                    frameMode === 'passport'
+                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  Passport Frame (35×45 mm)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFrameMode('1x1')}
+                  className={`py-1.5 px-3 rounded-lg text-xs font-bold transition text-center ${
+                    frameMode === '1x1'
+                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  1×1" Frame
+                </button>
+              </div>
+            </div>
 
-            {/* Interactive Crop Viewport */}
-            <div
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              className="relative w-full aspect-square max-h-[380px] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border-2 border-dashed border-slate-300 select-none cursor-grab active:cursor-grabbing"
-            >
+            {/* Outer Workboard Container with White Background Photo Frame */}
+            <div className="w-full min-h-[410px] bg-slate-100/90 rounded-2xl border border-slate-200 flex flex-col items-center justify-center p-4 overflow-hidden relative shadow-inner">
+              {/* Active Format Badge */}
+              <div className="absolute top-2.5 left-3 flex items-center gap-1.5 z-10">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-white/90 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                  {frameMode === 'passport'
+                    ? 'Passport Format (35 × 45 mm)'
+                    : frameMode === '1x1'
+                    ? '1×1 inch Format (25 × 25 mm)'
+                    : '2×2 inch Format (51 × 51 mm)'}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
+                  • Solid white photo background
+                </span>
+              </div>
+
+              {/* Physical White Background Photo Frame (2x2 or Passport Size) */}
+              <div
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                className={`relative bg-white shadow-xl border-2 border-slate-300 rounded-sm overflow-hidden select-none cursor-grab active:cursor-grabbing transition-all ${
+                  frameMode === 'passport'
+                    ? 'w-[280px] h-[360px]'
+                    : frameMode === '1x1'
+                    ? 'w-[280px] h-[280px]'
+                    : 'w-[320px] h-[320px]'
+                }`}
+              >
               {imageSrc ? (
                 <>
                   {/* The Scaled/Panned Image */}
@@ -291,33 +391,63 @@ export default function PhotoEditorModal({
                     />
                   </div>
 
-                  {/* Passport / ID Oval Framing Overlay */}
-                  <div className="absolute inset-8 rounded-full border-2 border-white/50 border-dashed pointer-events-none flex flex-col items-center justify-between p-4">
-                    <span className="text-[10px] text-white/80 bg-black/40 px-2 py-0.5 rounded-full font-medium">
-                      Top of Head
-                    </span>
-                    <div className="w-12 h-0.5 bg-white/40 rounded-full" />
-                    <span className="text-[10px] text-white/80 bg-black/40 px-2 py-0.5 rounded-full font-medium">
-                      Chin Line
-                    </span>
-                  </div>
+                  {/* Framing Guidelines matching the Frame Format */}
+                  {frameMode === 'passport' ? (
+                    // Passport (35x45mm) Specification Guides: Crown, Eye Line, Chin Line
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-3">
+                      <div className="w-full flex justify-between items-center text-[9px] text-slate-500 font-mono border-b border-dashed border-blue-400/70 pb-0.5">
+                        <span>Top of Head (Crown)</span>
+                        <span>35×45mm</span>
+                      </div>
 
-                  {/* Corner Rule Overlay */}
-                  <div className="absolute inset-0 pointer-events-none border border-white/30 grid grid-cols-3 grid-rows-3">
-                    <div className="border-r border-b border-white/20" />
-                    <div className="border-r border-b border-white/20" />
-                    <div className="border-b border-white/20" />
-                    <div className="border-r border-b border-white/20" />
-                    <div className="border-r border-b border-white/20" />
-                    <div className="border-b border-white/20" />
-                    <div className="border-r border-white/20" />
-                    <div className="border-r border-white/20" />
-                    <div />
-                  </div>
+                      {/* Passport Face Oval (32-36mm face height) */}
+                      <div className="w-[185px] h-[235px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-between p-2">
+                        <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                          Hairline
+                        </span>
+                        <div className="w-full flex items-center justify-center gap-1">
+                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                          <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
+                            Eye Level
+                          </span>
+                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                        </div>
+                        <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                          Chin Line
+                        </span>
+                      </div>
+
+                      <div className="w-full text-center text-[9px] text-slate-500 font-mono border-t border-dashed border-blue-400/70 pt-0.5">
+                        Bottom Edge
+                      </div>
+                    </div>
+                  ) : (
+                    // 2x2 or 1x1 Guidelines
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4">
+                      <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                        Top of Head
+                      </span>
+
+                      {/* 2x2 Face Oval */}
+                      <div className="w-[180px] h-[210px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-center p-2">
+                        <div className="w-full flex items-center justify-center gap-1">
+                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                          <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
+                            Eye Level
+                          </span>
+                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                        </div>
+                      </div>
+
+                      <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                        Chin Line
+                      </span>
+                    </div>
+                  )}
 
                   {/* Live Name Tag Preview Overlay */}
                   {nameTagEnabled && customerName && (
-                    <div className="absolute bottom-4 inset-x-8 bg-white border border-slate-300 py-1 px-2 text-center shadow-md">
+                    <div className="absolute bottom-2 inset-x-4 bg-white border border-slate-400 py-1 px-2 text-center shadow-md">
                       <p className="text-xs font-black text-black tracking-wider uppercase truncate">
                         {customerName}
                       </p>
@@ -327,16 +457,25 @@ export default function PhotoEditorModal({
               ) : (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center p-6 text-center cursor-pointer text-slate-400 hover:text-slate-300"
+                  className="w-full h-full flex flex-col items-center justify-center p-6 text-center cursor-pointer text-slate-400 hover:text-blue-600 transition"
                 >
-                  <Upload className="w-12 h-12 mb-2 text-slate-500" />
-                  <p className="text-sm font-semibold text-slate-200">
-                    Click to upload or drag & drop customer photo
+                  <Upload className="w-10 h-10 mb-2 text-slate-400" />
+                  <p className="text-xs font-bold text-slate-700">
+                    Click to upload or drag photo
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">JPEG, PNG, WEBP, or HEIC</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {frameMode === 'passport'
+                      ? 'Passport format (35×45 mm)'
+                      : '2×2 format (51×51 mm)'}
+                  </p>
                 </div>
               )}
             </div>
+
+            <p className="text-[11px] text-slate-500 mt-2.5 font-medium">
+              Drag to position photo within white background frame
+            </p>
+          </div>
 
             {/* Crop Controls Toolbar */}
             {imageSrc && (
