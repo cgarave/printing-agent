@@ -14,13 +14,14 @@ import {
   Layers,
   Palette,
 } from 'lucide-react';
-import { CustomerPhotoData, PACKAGE_PRESETS, PackagePreset, PhotoSize } from '@/lib/types';
+import { CustomerPhotoData, PACKAGE_PRESETS, PackagePreset, PhotoFormatCategory, PhotoSize } from '@/lib/types';
 import { processBackgroundColor } from '@/lib/background-removal';
 
 interface PhotoEditorModalProps {
   isOpen: boolean;
   quadrantLabel: string;
   initialData: CustomerPhotoData | null;
+  initialFormat?: PhotoFormatCategory;
   onClose: () => void;
   onSave: (data: CustomerPhotoData) => void;
 }
@@ -38,6 +39,7 @@ export default function PhotoEditorModal({
   isOpen,
   quadrantLabel,
   initialData,
+  initialFormat,
   onClose,
   onSave,
 }: PhotoEditorModalProps) {
@@ -54,6 +56,25 @@ export default function PhotoEditorModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  // Frame size mode (2x2, passport, or 1x1)
+  const [frameMode, setFrameMode] = useState<PhotoFormatCategory>(() => {
+    if (initialData?.frameMode) {
+      return initialData.frameMode;
+    }
+    if (initialData?.customCounts.passport && !initialData?.customCounts['2x2']) {
+      return 'passport';
+    }
+    if (initialData?.customCounts['1x1'] && !initialData?.customCounts['2x2'] && !initialData?.customCounts.passport) {
+      return '1x1';
+    }
+    return initialFormat || '2x2';
+  });
+
+  const [packageFilter, setPackageFilter] = useState<PhotoFormatCategory | 'all'>(() => {
+    if (initialData?.frameMode) return initialData.frameMode;
+    return initialFormat || '2x2';
+  });
+
   // Options
   const [selectedBgColor, setSelectedBgColor] = useState<string>(
     initialData?.backgroundColor || 'original'
@@ -65,46 +86,48 @@ export default function PhotoEditorModal({
   const [customerName, setCustomerName] = useState<string>(
     initialData?.customerName || ''
   );
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(
-    initialData?.presetId || 'preset-a'
-  );
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(() => {
+    if (initialData?.presetId) return initialData.presetId;
+    const defaultMode = initialFormat || '2x2';
+    if (defaultMode === 'passport') return 'passport-standard';
+    if (defaultMode === '1x1') return '1x1-dozen';
+    return '2x2-combo';
+  });
   const [customCounts, setCustomCounts] = useState<{
     '2x2': number;
     '1x1': number;
     'passport': number;
-  }>(
-    initialData?.customCounts || {
-      '2x2': 2,
-      '1x1': 8,
-      'passport': 0,
-    }
-  );
-
-  // Frame size mode (2x2, passport, or 1x1)
-  const [frameMode, setFrameMode] = useState<'2x2' | 'passport' | '1x1'>(() => {
-    if (initialData?.customCounts.passport && !initialData?.customCounts['2x2']) {
-      return 'passport';
-    }
-    if (initialData?.customCounts['1x1'] && !initialData?.customCounts['2x2'] && !initialData?.customCounts.passport) {
-      return '1x1';
-    }
-    return '2x2';
+  }>(() => {
+    if (initialData?.customCounts) return initialData.customCounts;
+    const defaultMode = initialFormat || '2x2';
+    if (defaultMode === 'passport') return { '2x2': 0, '1x1': 0, passport: 6 };
+    if (defaultMode === '1x1') return { '2x2': 0, '1x1': 12, passport: 0 };
+    return { '2x2': 2, '1x1': 8, passport: 0 };
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Sync frame mode change with presets
+  const handleFrameModeChange = (newMode: PhotoFormatCategory) => {
+    setFrameMode(newMode);
+    setPackageFilter(newMode);
+    const currentPreset = PACKAGE_PRESETS.find((p) => p.id === selectedPresetId);
+    if (!currentPreset || currentPreset.category !== newMode) {
+      const defaultForCategory = PACKAGE_PRESETS.find((p) => p.category === newMode);
+      if (defaultForCategory) {
+        setSelectedPresetId(defaultForCategory.id);
+        setCustomCounts({ ...defaultForCategory.counts });
+      }
+    }
+  };
+
   // Sync preset changes to counts & frame mode
   const handlePresetSelect = (preset: PackagePreset) => {
     setSelectedPresetId(preset.id);
     setCustomCounts({ ...preset.counts });
-    if (preset.counts.passport > 0 && preset.counts['2x2'] === 0) {
-      setFrameMode('passport');
-    } else if (preset.counts['1x1'] > 0 && preset.counts['2x2'] === 0 && preset.counts.passport === 0) {
-      setFrameMode('1x1');
-    } else {
-      setFrameMode('2x2');
-    }
+    setFrameMode(preset.category);
+    setPackageFilter(preset.category);
   };
 
   const handleCustomCountChange = (size: PhotoSize, delta: number) => {
@@ -161,25 +184,22 @@ export default function PhotoEditorModal({
   };
 
   // Render cropped photo onto high-res canvas with pure white frame background
-  const renderCroppedImage = (): string => {
+  const renderCroppedForSize = (targetMode: PhotoFormatCategory): string => {
     const canvas = document.createElement('canvas');
     let targetWidth = 600;
     let targetHeight = 600;
-    let framePixelW = 320;
-    let framePixelH = 320;
 
-    if (frameMode === 'passport') {
+    if (targetMode === 'passport') {
       // 35mm x 45mm (7:9 ratio) at 300 DPI: 560 x 720 px for crisp metric output
       targetWidth = 560;
       targetHeight = 720;
-      framePixelW = 280;
-      framePixelH = 360;
-    } else if (frameMode === '1x1') {
+    } else if (targetMode === '1x1') {
       targetWidth = 600;
       targetHeight = 600;
-      framePixelW = 280;
-      framePixelH = 280;
     }
+
+    const activeFramePixelW = frameMode === 'passport' ? 280 : frameMode === '1x1' ? 280 : 320;
+    const activeFramePixelH = frameMode === 'passport' ? 360 : frameMode === '1x1' ? 280 : 320;
 
     canvas.width = targetWidth;
     canvas.height = targetHeight;
@@ -198,8 +218,8 @@ export default function PhotoEditorModal({
 
     ctx.save();
     // Scale panning proportional to screen frame size
-    const panScaleX = targetWidth / framePixelW;
-    const panScaleY = targetHeight / framePixelH;
+    const panScaleX = targetWidth / activeFramePixelW;
+    const panScaleY = targetHeight / activeFramePixelH;
     ctx.translate(canvas.width / 2 + panX * panScaleX, canvas.height / 2 + panY * panScaleY);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(zoom, zoom);
@@ -220,11 +240,16 @@ export default function PhotoEditorModal({
   const handleSave = () => {
     if (!imageSrc) return;
 
-    const finalPhoto = renderCroppedImage();
+    const finalPhoto = renderCroppedForSize(frameMode);
+    const finalPhoto2x2 = renderCroppedForSize('2x2');
+    const finalPhotoPassport = renderCroppedForSize('passport');
 
     onSave({
       originalImage: imageSrc,
       processedImage: finalPhoto,
+      processedImage2x2: finalPhoto2x2,
+      processedImagePassport: finalPhotoPassport,
+      frameMode,
       nameTagEnabled,
       customerName: customerName.trim(),
       backgroundColor: selectedBgColor,
@@ -311,7 +336,7 @@ export default function PhotoEditorModal({
               <div className="flex items-center gap-1 w-full">
                 <button
                   type="button"
-                  onClick={() => setFrameMode('2x2')}
+                  onClick={() => handleFrameModeChange('2x2')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
                     frameMode === '2x2'
                       ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
@@ -322,10 +347,10 @@ export default function PhotoEditorModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFrameMode('passport')}
+                  onClick={() => handleFrameModeChange('passport')}
                   className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
                     frameMode === 'passport'
-                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
+                      ? 'bg-white text-purple-700 shadow-xs ring-1 ring-purple-600/30'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
@@ -333,14 +358,14 @@ export default function PhotoEditorModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFrameMode('1x1')}
+                  onClick={() => handleFrameModeChange('1x1')}
                   className={`py-1.5 px-3 rounded-lg text-xs font-bold transition text-center ${
                     frameMode === '1x1'
-                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
+                      ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-600/30'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
-                  1×1" Frame
+                  1×1" Frame (25×25 mm)
                 </button>
               </div>
             </div>
@@ -611,32 +636,103 @@ export default function PhotoEditorModal({
 
             {/* 3. Package Selection */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex-1 flex flex-col">
-              <span className="text-sm font-semibold text-slate-800 flex items-center gap-1.5 mb-3">
-                <Layers className="w-4 h-4 text-blue-600" />
-                2. Select Photo Package Bundle
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  2. Select Output Package Bundle
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                  {frameMode === 'passport' ? 'Passport (35×45mm)' : frameMode === '1x1' ? '1×1" Mode' : '2×2" Mode'}
+                </span>
+              </div>
+
+              {/* Package Format Filter Tabs */}
+              <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-lg mb-3">
+                <button
+                  type="button"
+                  onClick={() => setPackageFilter('2x2')}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                    packageFilter === '2x2'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  2×2 Bundles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPackageFilter('passport')}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                    packageFilter === 'passport'
+                      ? 'bg-white text-purple-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Passport
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPackageFilter('1x1')}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                    packageFilter === '1x1'
+                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  1×1" Bundles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPackageFilter('all')}
+                  className={`px-2 py-1 text-[11px] font-bold rounded transition text-center ${
+                    packageFilter === 'all'
+                      ? 'bg-white text-slate-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All
+                </button>
+              </div>
 
               {/* Preset Cards */}
-              <div className="flex flex-col gap-2 mb-4">
-                {PACKAGE_PRESETS.map((preset) => {
+              <div className="flex flex-col gap-2 mb-4 max-h-[220px] overflow-y-auto pr-0.5">
+                {PACKAGE_PRESETS.filter((p) => packageFilter === 'all' || p.category === packageFilter).map((preset) => {
                   const isSelected = selectedPresetId === preset.id;
+                  const isPassportPreset = preset.category === 'passport';
                   return (
                     <div
                       key={preset.id}
                       onClick={() => handlePresetSelect(preset)}
                       className={`p-3 rounded-lg border text-left cursor-pointer transition flex items-center justify-between ${
                         isSelected
-                          ? 'border-blue-600 bg-blue-50/70 shadow-xs'
+                          ? isPassportPreset
+                            ? 'border-purple-600 bg-purple-50/70 shadow-xs'
+                            : 'border-blue-600 bg-blue-50/70 shadow-xs'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       }`}
                     >
                       <div>
-                        <p className="text-xs font-bold text-slate-800">{preset.name}</p>
-                        <p className="text-[11px] text-slate-500">{preset.description}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-slate-800">{preset.name}</p>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                            preset.category === 'passport'
+                              ? 'bg-purple-100 text-purple-700'
+                              : preset.category === '1x1'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {preset.category === 'passport' ? 'Passport' : preset.category.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{preset.description}</p>
                       </div>
                       <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
+                          isSelected
+                            ? isPassportPreset
+                              ? 'border-purple-600 bg-purple-600 text-white'
+                              : 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-slate-300'
                         }`}
                       >
                         {isSelected && <Check className="w-3 h-3" />}

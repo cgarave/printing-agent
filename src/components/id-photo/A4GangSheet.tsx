@@ -10,8 +10,10 @@ import {
   FileCheck,
   Sparkles,
   Info,
+  Layers,
+  Copy,
 } from 'lucide-react';
-import { CustomerPhotoData, QuadrantId, QuadrantSlotState } from '@/lib/types';
+import { CustomerPhotoData, PACKAGE_PRESETS, PhotoFormatCategory, QuadrantId, QuadrantSlotState } from '@/lib/types';
 import QuadrantSlot from './QuadrantSlot';
 import PhotoEditorModal from './PhotoEditorModal';
 import { generateA4GangSheetPdf } from '@/lib/pdf-generator';
@@ -22,6 +24,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 1',
     sublabel: 'Top-Left',
     enabled: true,
+    format: '2x2',
     photoData: null,
   },
   {
@@ -29,6 +32,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 2',
     sublabel: 'Top-Right',
     enabled: true,
+    format: '2x2',
     photoData: null,
   },
   {
@@ -36,6 +40,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 3',
     sublabel: 'Bottom-Left',
     enabled: true,
+    format: 'passport',
     photoData: null,
   },
   {
@@ -43,6 +48,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 4',
     sublabel: 'Bottom-Right',
     enabled: true,
+    format: 'passport',
     photoData: null,
   },
 ];
@@ -64,9 +70,92 @@ export default function A4GangSheet() {
     setQuadrants((prev) =>
       prev.map((q) =>
         q.id === activeEditingSlotId
-          ? { ...q, photoData: data, enabled: true }
+          ? { ...q, photoData: data, format: data.frameMode, enabled: true }
           : q
       )
+    );
+  };
+
+  const handleChangeSlotFormat = (id: QuadrantId, format: PhotoFormatCategory) => {
+    setQuadrants((prev) =>
+      prev.map((q) => {
+        if (q.id !== id) return q;
+
+        if (q.photoData) {
+          const defaultPreset = PACKAGE_PRESETS.find((p) => p.category === format);
+          const newProcessed =
+            format === 'passport'
+              ? q.photoData.processedImagePassport || q.photoData.processedImage
+              : q.photoData.processedImage2x2 || q.photoData.processedImage;
+
+          return {
+            ...q,
+            format,
+            photoData: {
+              ...q.photoData,
+              frameMode: format,
+              presetId: defaultPreset ? defaultPreset.id : q.photoData.presetId,
+              customCounts: defaultPreset ? { ...defaultPreset.counts } : q.photoData.customCounts,
+              processedImage: newProcessed,
+            },
+          };
+        }
+
+        return { ...q, format };
+      })
+    );
+  };
+
+  const handleApplySheetPreset = (presetType: 'all-2x2' | 'all-passport' | 'mixed' | 'all-1x1') => {
+    setQuadrants((prev) =>
+      prev.map((q, idx) => {
+        let targetFormat: PhotoFormatCategory = '2x2';
+        if (presetType === 'all-passport') targetFormat = 'passport';
+        else if (presetType === 'all-1x1') targetFormat = '1x1';
+        else if (presetType === 'mixed') {
+          targetFormat = idx < 2 ? '2x2' : 'passport';
+        }
+
+        const defaultPackage = PACKAGE_PRESETS.find((p) => p.category === targetFormat);
+
+        if (q.photoData) {
+          const newProcessed =
+            targetFormat === 'passport'
+              ? q.photoData.processedImagePassport || q.photoData.processedImage
+              : q.photoData.processedImage2x2 || q.photoData.processedImage;
+
+          return {
+            ...q,
+            format: targetFormat,
+            photoData: {
+              ...q.photoData,
+              frameMode: targetFormat,
+              presetId: defaultPackage ? defaultPackage.id : q.photoData.presetId,
+              customCounts: defaultPackage ? { ...defaultPackage.counts } : q.photoData.customCounts,
+              processedImage: newProcessed,
+            },
+          };
+        }
+
+        return { ...q, format: targetFormat };
+      })
+    );
+  };
+
+  const handleDuplicateToAll = () => {
+    const sourcePhoto = quadrants.find((q) => q.photoData !== null)?.photoData;
+    if (!sourcePhoto) {
+      alert('Please load at least one photo first to copy to all quadrants.');
+      return;
+    }
+
+    setQuadrants((prev) =>
+      prev.map((q) => ({
+        ...q,
+        enabled: true,
+        format: sourcePhoto.frameMode,
+        photoData: { ...sourcePhoto },
+      }))
     );
   };
 
@@ -199,6 +288,57 @@ export default function A4GangSheet() {
         </div>
       </div>
 
+      {/* Quick Sheet Layout Presets Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mr-1">
+            <Layers className="w-3.5 h-3.5 text-blue-600" />
+            Sheet Presets:
+          </span>
+          <button
+            type="button"
+            onClick={() => handleApplySheetPreset('all-2x2')}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition"
+          >
+            All 2×2 (Govt/Job)
+          </button>
+          <button
+            type="button"
+            onClick={() => handleApplySheetPreset('all-passport')}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
+          >
+            All Passport (35×45mm DFA)
+          </button>
+          <button
+            type="button"
+            onClick={() => handleApplySheetPreset('mixed')}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition"
+          >
+            Mixed (2x 2×2 + 2x Passport)
+          </button>
+          <button
+            type="button"
+            onClick={() => handleApplySheetPreset('all-1x1')}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition"
+          >
+            All 1×1 Grid
+          </button>
+        </div>
+
+        {/* Copy to All Quadrants shortcut */}
+        {totalLoaded > 0 && (
+          <button
+            type="button"
+            onClick={handleDuplicateToAll}
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-slate-700 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg transition"
+            title="Duplicate loaded photo to all enabled quadrants"
+          >
+            <Copy className="w-3.5 h-3.5 text-slate-600" />
+            Duplicate Photo to All Quadrants
+          </button>
+        )}
+      </div>
+
       {/* Visual A4 Paper Representation: 2x2 Quadrant Grid */}
       <div className="flex justify-center">
         <div className="w-full max-w-4xl bg-slate-100/70 p-4 sm:p-6 rounded-3xl border border-slate-200">
@@ -210,6 +350,7 @@ export default function A4GangSheet() {
                 onEdit={() => handleEditSlot(slot.id)}
                 onToggleEnabled={() => handleToggleEnabled(slot.id)}
                 onClear={() => handleClearSlot(slot.id)}
+                onChangeFormat={(format) => handleChangeSlotFormat(slot.id, format)}
               />
             ))}
           </div>
@@ -221,8 +362,8 @@ export default function A4GangSheet() {
         <div className="bg-blue-50/60 border border-blue-200/80 p-3.5 rounded-xl flex gap-2.5">
           <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <p>
-            <strong className="text-blue-900 block font-semibold mb-0.5">Save Photo Paper</strong>
-            If you have a half-sheet or quadrant already cut, uncheck the quadrants you already printed to feed the paper again.
+            <strong className="text-blue-900 block font-semibold mb-0.5">Flexible Quadrant Formats</strong>
+            Choose 2×2", Passport (35×45mm), or 1×1" independently per quadrant, or apply sheet presets to all quadrants with 1 click.
           </p>
         </div>
         <div className="bg-emerald-50/60 border border-emerald-200/80 p-3.5 rounded-xl flex gap-2.5">
@@ -236,7 +377,7 @@ export default function A4GangSheet() {
           <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
           <p>
             <strong className="text-purple-900 block font-semibold mb-0.5">True 300 DPI Metric Scale</strong>
-            Outputs exact 50.8mm (2×2") and 25.4mm (1×1") dimensions without Microsoft Word table stretching or scaling bugs.
+            Outputs exact 50.8mm (2×2"), 35×45mm (Passport), and 25.4mm (1×1") dimensions without stretching or scaling bugs.
           </p>
         </div>
       </div>
@@ -247,6 +388,7 @@ export default function A4GangSheet() {
           isOpen={activeEditingSlotId !== null}
           quadrantLabel={`${activeSlot.label} (${activeSlot.sublabel})`}
           initialData={activeSlot.photoData}
+          initialFormat={activeSlot.format || activeSlot.photoData?.frameMode || '2x2'}
           onClose={() => setActiveEditingSlotId(null)}
           onSave={handleSaveSlotData}
         />

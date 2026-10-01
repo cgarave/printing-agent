@@ -57,10 +57,17 @@ export async function generateA4GangSheetPdf(
       const photoX = offset.x + item.xMm;
       const photoY = offset.y + item.yMm;
 
-      // 1. Draw photo image
+      // 1. Draw photo image with exact aspect ratio
+      const imageToDraw =
+        item.size === 'passport' && photoData.processedImagePassport
+          ? photoData.processedImagePassport
+          : (item.size === '2x2' || item.size === '1x1') && photoData.processedImage2x2
+          ? photoData.processedImage2x2
+          : photoData.processedImage;
+
       try {
         doc.addImage(
-          photoData.processedImage,
+          imageToDraw,
           'JPEG',
           photoX,
           photoY,
@@ -72,7 +79,7 @@ export async function generateA4GangSheetPdf(
       } catch (err) {
         // Fallback for PNG or other formats
         doc.addImage(
-          photoData.processedImage,
+          imageToDraw,
           'PNG',
           photoX,
           photoY,
