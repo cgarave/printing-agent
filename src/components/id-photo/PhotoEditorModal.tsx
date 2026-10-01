@@ -55,6 +55,8 @@ export default function PhotoEditorModal({
   const [panY, setPanY] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Frame size mode (2x2, passport, or 1x1)
   const [frameMode, setFrameMode] = useState<PhotoFormatCategory>(() => {
@@ -74,6 +76,20 @@ export default function PhotoEditorModal({
     if (initialData?.frameMode) return initialData.frameMode;
     return initialFormat || '2x2';
   });
+
+  // Track natural image dimensions whenever active source changes
+  useEffect(() => {
+    const src = processedPreview || imageSrc;
+    if (src) {
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        if (tempImg.naturalWidth > 0 && tempImg.naturalHeight > 0) {
+          setNaturalSize({ width: tempImg.naturalWidth, height: tempImg.naturalHeight });
+        }
+      };
+      tempImg.src = src;
+    }
+  }, [processedPreview, imageSrc]);
 
   // Options
   const [selectedBgColor, setSelectedBgColor] = useState<string>(
@@ -184,80 +200,101 @@ export default function PhotoEditorModal({
   };
 
   // Render cropped photo onto high-res canvas with pure white frame background
-  const renderCroppedForSize = (targetMode: PhotoFormatCategory): string => {
-    const canvas = document.createElement('canvas');
-    let targetWidth = 600;
-    let targetHeight = 600;
-
-    if (targetMode === 'passport') {
-      // 35mm x 45mm (7:9 ratio) at 300 DPI: 560 x 720 px for crisp metric output
-      targetWidth = 560;
-      targetHeight = 720;
-    } else if (targetMode === '1x1') {
-      targetWidth = 600;
-      targetHeight = 600;
-    }
-
-    const activeFramePixelW = frameMode === 'passport' ? 280 : frameMode === '1x1' ? 280 : 320;
-    const activeFramePixelH = frameMode === 'passport' ? 360 : frameMode === '1x1' ? 280 : 320;
-
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return processedPreview || imageSrc || '';
-
+  const renderCroppedForSize = async (
+    targetMode: PhotoFormatCategory
+  ): Promise<string> => {
     const activeImageSrc = processedPreview || imageSrc;
     if (!activeImageSrc) return '';
 
+    // Load and decode image to ensure natural dimensions and pixels are fully ready
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.src = activeImageSrc;
+    try {
+      await img.decode();
+    } catch {
+      await new Promise((resolve) => {
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+      });
+    }
 
-    // 1. Fill solid pure white background from the frame as base
+    const imgNaturalW = img.naturalWidth || naturalSize?.width || 600;
+    const imgNaturalH = img.naturalHeight || naturalSize?.height || 600;
+
+    // Active frame dimensions from screen workboard
+    const activeFrameW = frameMode === 'passport' ? 280 : frameMode === '1x1' ? 280 : 320;
+    const activeFrameH = frameMode === 'passport' ? 360 : frameMode === '1x1' ? 280 : 320;
+
+    // Display scale in active screen frame (cover behavior)
+    const activeBaseScale = Math.max(activeFrameW / imgNaturalW, activeFrameH / imgNaturalH);
+    const activeDisplayW = imgNaturalW * activeBaseScale;
+    const activeDisplayH = imgNaturalH * activeBaseScale;
+
+    // Output target dimensions (300 DPI high resolution)
+    let canvasW = 600;
+    let canvasH = 600;
+    if (targetMode === 'passport') {
+      canvasW = 700; // 35mm at 300DPI (7:9 ratio)
+      canvasH = 900; // 45mm at 300DPI
+    } else {
+      canvasW = 600; // 1:1 ratio for 2x2 and 1x1
+      canvasH = 600;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return activeImageSrc;
+
+    // 1. Fill solid pure white background from frame
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    // Scale panning proportional to screen frame size
-    const panScaleX = targetWidth / activeFramePixelW;
-    const panScaleY = targetHeight / activeFramePixelH;
-    ctx.translate(canvas.width / 2 + panX * panScaleX, canvas.height / 2 + panY * panScaleY);
+    // Multiplier from screen frame to high-res canvas
+    const scaleFactor = targetMode === 'passport' ? (canvasW / 280) : (canvasW / 320);
+
+    ctx.translate(canvas.width / 2 + panX * scaleFactor, canvas.height / 2 + panY * scaleFactor);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(zoom, zoom);
 
-    // Center image
-    const w = img.width || targetWidth;
-    const h = img.height || targetHeight;
-    const scale = Math.max(targetWidth / w, targetHeight / h);
-    const drawW = w * scale;
-    const drawH = h * scale;
-
+    const drawW = activeDisplayW * scaleFactor;
+    const drawH = activeDisplayH * scaleFactor;
     ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
     ctx.restore();
 
     return canvas.toDataURL('image/jpeg', 0.95);
   };
 
-  const handleSave = () => {
-    if (!imageSrc) return;
+  const handleSave = async () => {
+    if (!imageSrc || isSaving) return;
+    setIsSaving(true);
+    try {
+      const finalPhoto = await renderCroppedForSize(frameMode);
+      const finalPhoto2x2 = await renderCroppedForSize('2x2');
+      const finalPhotoPassport = await renderCroppedForSize('passport');
 
-    const finalPhoto = renderCroppedForSize(frameMode);
-    const finalPhoto2x2 = renderCroppedForSize('2x2');
-    const finalPhotoPassport = renderCroppedForSize('passport');
+      onSave({
+        originalImage: imageSrc,
+        processedImage: finalPhoto,
+        processedImage2x2: finalPhoto2x2,
+        processedImagePassport: finalPhotoPassport,
+        frameMode,
+        nameTagEnabled,
+        customerName: customerName.trim(),
+        backgroundColor: selectedBgColor,
+        presetId: selectedPresetId,
+        customCounts,
+      });
 
-    onSave({
-      originalImage: imageSrc,
-      processedImage: finalPhoto,
-      processedImage2x2: finalPhoto2x2,
-      processedImagePassport: finalPhotoPassport,
-      frameMode,
-      nameTagEnabled,
-      customerName: customerName.trim(),
-      backgroundColor: selectedBgColor,
-      presetId: selectedPresetId,
-      customCounts,
-    });
-
-    onClose();
+      onClose();
+    } catch (err) {
+      console.error('Failed to crop photo:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Mouse pan handlers
@@ -275,6 +312,17 @@ export default function PhotoEditorModal({
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  const framePixelW = frameMode === 'passport' ? 280 : frameMode === '1x1' ? 280 : 320;
+  const framePixelH = frameMode === 'passport' ? 360 : frameMode === '1x1' ? 280 : 320;
+
+  const baseScale =
+    naturalSize && naturalSize.width > 0 && naturalSize.height > 0
+      ? Math.max(framePixelW / naturalSize.width, framePixelH / naturalSize.height)
+      : 1;
+
+  const displayW = naturalSize && naturalSize.width > 0 ? naturalSize.width * baseScale : framePixelW;
+  const displayH = naturalSize && naturalSize.height > 0 ? naturalSize.height * baseScale : framePixelH;
 
   if (!isOpen) return null;
 
@@ -402,17 +450,27 @@ export default function PhotoEditorModal({
               >
               {imageSrc ? (
                 <>
-                  {/* The Scaled/Panned Image */}
+                  {/* The Scaled/Panned Image (Exact 100% match to canvas export) */}
                   <div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none transition-transform duration-75"
-                    style={{
-                      transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)`,
-                    }}
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden"
                   >
                     <img
                       src={processedPreview || imageSrc}
                       alt="Crop target"
-                      className="max-w-none max-h-none object-contain"
+                      onLoad={(e) => {
+                        const target = e.currentTarget;
+                        if (target.naturalWidth > 0 && target.naturalHeight > 0) {
+                          setNaturalSize({ width: target.naturalWidth, height: target.naturalHeight });
+                        }
+                      }}
+                      style={{
+                        width: `${displayW}px`,
+                        height: `${displayH}px`,
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)`,
+                        transformOrigin: 'center center',
+                      }}
                     />
                   </div>
 
@@ -470,9 +528,9 @@ export default function PhotoEditorModal({
                     </div>
                   )}
 
-                  {/* Live Name Tag Preview Overlay */}
+                  {/* Live Name Tag Preview Overlay (matches exact print and quadrant banner position) */}
                   {nameTagEnabled && customerName && (
-                    <div className="absolute bottom-2 inset-x-4 bg-white border border-slate-400 py-1 px-2 text-center shadow-md">
+                    <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-400 py-1 px-2 text-center shadow-md z-20">
                       <p className="text-xs font-black text-black tracking-wider uppercase truncate">
                         {customerName}
                       </p>
@@ -815,23 +873,42 @@ export default function PhotoEditorModal({
                   </div>
                 </div>
               </div>
+
+              {/* Live Quadrant Output Sync Summary */}
+              <div className="bg-blue-50/80 border border-blue-200/90 p-3 rounded-xl text-xs flex items-center justify-between mt-3">
+                <div>
+                  <span className="font-bold text-blue-950 block">
+                    Quadrant Output Layout ({frameMode === 'passport' ? 'Passport 35×45 mm' : frameMode === '1x1' ? '1×1" Grid' : '2×2" Combo'})
+                  </span>
+                  <span className="text-[11px] text-blue-700 font-medium">
+                    {customCounts['passport'] > 0 && `${customCounts['passport']} pcs Passport (35×45mm) `}
+                    {customCounts['2x2'] > 0 && `${customCounts['2x2']} pcs 2×2" `}
+                    {customCounts['1x1'] > 0 && `${customCounts['1x1']} pcs 1×1"`}
+                    {customCounts['passport'] === 0 && customCounts['2x2'] === 0 && customCounts['1x1'] === 0 && '0 photos configured'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white text-blue-800 border border-blue-200 shadow-2xs">
+                  105 × 148.5 mm
+                </span>
+              </div>
             </div>
 
             {/* Bottom Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={onClose}
+                disabled={isSaving}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
               >
                 Cancel
               </button>
               <button
-                disabled={!imageSrc}
+                disabled={!imageSrc || isSaving}
                 onClick={handleSave}
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition"
               >
                 <Check className="w-4 h-4" />
-                Apply to {quadrantLabel}
+                {isSaving ? 'Processing & Scaling...' : `Apply to ${quadrantLabel}`}
               </button>
             </div>
           </div>

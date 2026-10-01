@@ -40,7 +40,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 3',
     sublabel: 'Bottom-Left',
     enabled: true,
-    format: 'passport',
+    format: '2x2',
     photoData: null,
   },
   {
@@ -48,7 +48,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
     label: 'Quadrant 4',
     sublabel: 'Bottom-Right',
     enabled: true,
-    format: 'passport',
+    format: '2x2',
     photoData: null,
   },
 ];
@@ -56,12 +56,16 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
 export default function A4GangSheet() {
   const [quadrants, setQuadrants] = useState<QuadrantSlotState[]>(INITIAL_QUADRANTS);
   const [activeEditingSlotId, setActiveEditingSlotId] = useState<QuadrantId | null>(null);
+  const [activeEditingFormat, setActiveEditingFormat] = useState<PhotoFormatCategory>('2x2');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Active slot for modal
   const activeSlot = quadrants.find((q) => q.id === activeEditingSlotId) || null;
 
-  const handleEditSlot = (id: QuadrantId) => {
+  const handleEditSlot = (id: QuadrantId, forcedFormat?: PhotoFormatCategory) => {
+    const slot = quadrants.find((q) => q.id === id);
+    const targetFormat = forcedFormat || slot?.format || slot?.photoData?.frameMode || '2x2';
+    setActiveEditingFormat(targetFormat);
     setActiveEditingSlotId(id);
   };
 
@@ -212,10 +216,13 @@ export default function A4GangSheet() {
     // Generate high-res PDF and open in new print window for exact 100% metric scale!
     try {
       const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true });
-      const blobUrl = doc.output('bloburl');
-      const printWindow = window.open(blobUrl);
+      const blob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      const printWindow = window.open(blobUrl, '_blank');
       if (printWindow) {
         printWindow.focus();
+      } else {
+        doc.save(`A4_ID_Gang_Sheet_${new Date().toISOString().slice(0, 10)}.pdf`);
       }
     } catch (err) {
       console.error('Print preview failed:', err);
@@ -348,6 +355,7 @@ export default function A4GangSheet() {
                 key={slot.id}
                 slot={slot}
                 onEdit={() => handleEditSlot(slot.id)}
+                onEditWithFormat={(format) => handleEditSlot(slot.id, format)}
                 onToggleEnabled={() => handleToggleEnabled(slot.id)}
                 onClear={() => handleClearSlot(slot.id)}
                 onChangeFormat={(format) => handleChangeSlotFormat(slot.id, format)}
@@ -388,7 +396,7 @@ export default function A4GangSheet() {
           isOpen={activeEditingSlotId !== null}
           quadrantLabel={`${activeSlot.label} (${activeSlot.sublabel})`}
           initialData={activeSlot.photoData}
-          initialFormat={activeSlot.format || activeSlot.photoData?.frameMode || '2x2'}
+          initialFormat={activeEditingFormat}
           onClose={() => setActiveEditingSlotId(null)}
           onSave={handleSaveSlotData}
         />
