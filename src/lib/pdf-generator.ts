@@ -115,9 +115,9 @@ export async function generateA4GangSheetPdf(
         doc.text(photoData.customerName, textX, textY, { align: 'center' });
       }
 
-      // 3. Draw ultra-fine 0.25pt cutting guide around each photo
-      doc.setDrawColor(175, 175, 175);
-      doc.setLineWidth(0.09); // ~0.25pt hairline
+      // 3. Draw crisp visible cutting guide border around each photo
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15); // ~0.42pt precision cutting guide border
       doc.rect(photoX, photoY, item.widthMm, item.heightMm, 'S');
     }
   }

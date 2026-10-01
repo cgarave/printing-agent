@@ -29,7 +29,7 @@ export function calculateQuadrantLayout(counts: {
   'passport': number;
 }): QuadrantLayout {
   const items: PackedPhotoItem[] = [];
-  const gapMm = 1.5; // hairline cutting gap between photos
+  const gapMm = 0; // 0mm gap: seamless abutting photos with shared cutting lines
 
   const num2x2 = counts['2x2'] || 0;
   const numPassport = counts['passport'] || 0;
@@ -46,24 +46,19 @@ export function calculateQuadrantLayout(counts: {
 
   // Compute total required vertical height to center inside quadrant
   let totalContentHeight = 0;
-  let activeSections = 0;
 
   if (rows2x2 > 0) {
-    totalContentHeight += rows2x2 * size2x2.heightMm + (rows2x2 - 1) * gapMm;
-    activeSections++;
+    totalContentHeight += rows2x2 * size2x2.heightMm;
   }
   if (rowsPass > 0) {
-    totalContentHeight += rowsPass * sizePass.heightMm + (rowsPass - 1) * gapMm;
-    activeSections++;
+    totalContentHeight += rowsPass * sizePass.heightMm;
   }
   if (rows1x1 > 0) {
-    totalContentHeight += rows1x1 * size1x1.heightMm + (rows1x1 - 1) * gapMm;
-    activeSections++;
+    totalContentHeight += rows1x1 * size1x1.heightMm;
   }
-  totalContentHeight += Math.max(0, activeSections - 1) * (gapMm * 1.5);
 
   // Vertically center inside the 148.5mm quadrant
-  let currentY = Math.max(3.0, (QUADRANT_HEIGHT_MM - totalContentHeight) / 2);
+  let currentY = Math.max(2.0, (QUADRANT_HEIGHT_MM - totalContentHeight) / 2);
   let itemIdCounter = 1;
 
   // 1. Pack 2x2 photos (50.8mm x 50.8mm)
@@ -71,14 +66,14 @@ export function calculateQuadrantLayout(counts: {
     const maxCols2x2 = 2;
     const startX2x2 = Math.max(
       1.0,
-      (QUADRANT_WIDTH_MM - (maxCols2x2 * size2x2.widthMm + (maxCols2x2 - 1) * gapMm)) / 2
+      (QUADRANT_WIDTH_MM - maxCols2x2 * size2x2.widthMm) / 2
     );
 
     for (let i = 0; i < num2x2; i++) {
       const col = i % maxCols2x2;
       const row = Math.floor(i / maxCols2x2);
-      const x = startX2x2 + col * (size2x2.widthMm + gapMm);
-      const y = currentY + row * (size2x2.heightMm + gapMm);
+      const x = startX2x2 + col * size2x2.widthMm;
+      const y = currentY + row * size2x2.heightMm;
 
       items.push({
         id: `photo-2x2-${itemIdCounter++}`,
@@ -91,7 +86,7 @@ export function calculateQuadrantLayout(counts: {
       });
     }
 
-    currentY += rows2x2 * size2x2.heightMm + (rows2x2 - 1) * gapMm + gapMm * 1.5;
+    currentY += rows2x2 * size2x2.heightMm;
   }
 
   // 2. Pack Passport photos (35mm x 45mm)
@@ -99,14 +94,14 @@ export function calculateQuadrantLayout(counts: {
     const maxColsPass = 2;
     const startXPass = Math.max(
       2.0,
-      (QUADRANT_WIDTH_MM - (maxColsPass * sizePass.widthMm + (maxColsPass - 1) * gapMm)) / 2
+      (QUADRANT_WIDTH_MM - maxColsPass * sizePass.widthMm) / 2
     );
 
     for (let i = 0; i < numPassport; i++) {
       const col = i % maxColsPass;
       const row = Math.floor(i / maxColsPass);
-      const x = startXPass + col * (sizePass.widthMm + gapMm);
-      const y = currentY + row * (sizePass.heightMm + gapMm);
+      const x = startXPass + col * sizePass.widthMm;
+      const y = currentY + row * sizePass.heightMm;
 
       items.push({
         id: `photo-pass-${itemIdCounter++}`,
@@ -119,20 +114,20 @@ export function calculateQuadrantLayout(counts: {
       });
     }
 
-    currentY += rowsPass * sizePass.heightMm + (rowsPass - 1) * gapMm + gapMm * 1.5;
+    currentY += rowsPass * sizePass.heightMm;
   }
 
   // 3. Pack 1x1 photos (25.4mm x 25.4mm)
   if (num1x1 > 0) {
     const maxCols1x1 = 4;
-    const totalWidth1x1 = maxCols1x1 * size1x1.widthMm + (maxCols1x1 - 1) * gapMm;
+    const totalWidth1x1 = maxCols1x1 * size1x1.widthMm;
     const startX1x1 = Math.max(1.0, (QUADRANT_WIDTH_MM - totalWidth1x1) / 2);
 
     for (let i = 0; i < num1x1; i++) {
       const col = i % maxCols1x1;
       const row = Math.floor(i / maxCols1x1);
-      const x = startX1x1 + col * (size1x1.widthMm + gapMm);
-      const y = currentY + row * (size1x1.heightMm + gapMm);
+      const x = startX1x1 + col * size1x1.widthMm;
+      const y = currentY + row * size1x1.heightMm;
 
       items.push({
         id: `photo-1x1-${itemIdCounter++}`,

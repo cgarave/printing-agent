@@ -377,8 +377,8 @@ export default function A4GangSheet() {
         <div className="bg-emerald-50/60 border border-emerald-200/80 p-3.5 rounded-xl flex gap-2.5">
           <FileCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <p>
-            <strong className="text-emerald-900 block font-semibold mb-0.5">Hairline Cut Lines</strong>
-            Each photo automatically has a 0.25pt faint border so your paper trimmer can slice with 100% straight alignment.
+            <strong className="text-emerald-900 block font-semibold mb-0.5">Zero-Gap Cutting Borders</strong>
+            Photos abut seamlessly with crisp cutting guide borders for single-pass trimmer slicing without paper waste.
           </p>
         </div>
         <div className="bg-purple-50/60 border border-purple-200/80 p-3.5 rounded-xl flex gap-2.5">
