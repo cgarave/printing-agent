@@ -53,29 +53,29 @@ export default function Home() {
           </div>
 
           {/* Center Tabs Switcher */}
-          <nav className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setActiveTab('id_photos')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                 activeTab === 'id_photos'
-                  ? 'bg-white text-blue-700 shadow-xs'
+                  ? 'bg-white text-blue-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
               <Camera className="w-4 h-4" />
-              ID Photo Packager (A4)
+              ID Photos (A4)
             </button>
 
             <button
               onClick={() => setActiveTab('doc_encoder')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                 activeTab === 'doc_encoder'
-                  ? 'bg-white text-blue-700 shadow-xs'
+                  ? 'bg-white text-blue-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
               <FileText className="w-4 h-4" />
-              Document Auto-Encoder
+              Document Encoder
             </button>
           </nav>
 
@@ -99,16 +99,16 @@ export default function Home() {
       </main>
 
       {/* Counter Operator Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 mt-auto">
+      <footer className="bg-white border-t border-slate-200 py-3 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-700">Printing Agent</span>
             <span>•</span>
-            <span>A4 ID Gang Sheets & Document Encoding Automation</span>
+            <span>ID Photos & Document Encoding</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono text-[11px]">
-              Shortcut: <kbd className="font-bold">Ctrl + P</kbd> to Print
+              Shortcut: <kbd className="font-bold">Ctrl + P</kbd>
             </span>
           </div>
         </div>

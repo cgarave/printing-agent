@@ -1,17 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Printer,
   Download,
-  CheckSquare,
-  Square,
   Trash2,
-  FileCheck,
-  Sparkles,
-  Info,
   Layers,
   Copy,
+  ChevronDown,
 } from 'lucide-react';
 import { CustomerPhotoData, PACKAGE_PRESETS, PhotoFormatCategory, QuadrantId, QuadrantSlotState } from '@/lib/types';
 import QuadrantSlot from './QuadrantSlot';
@@ -58,6 +54,18 @@ export default function A4GangSheet() {
   const [activeEditingSlotId, setActiveEditingSlotId] = useState<QuadrantId | null>(null);
   const [activeEditingFormat, setActiveEditingFormat] = useState<PhotoFormatCategory>('2x2');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isPresetsOpen, setIsPresetsOpen] = useState(false);
+  const presetsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (presetsRef.current && !presetsRef.current.contains(event.target as Node)) {
+        setIsPresetsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Active slot for modal
   const activeSlot = quadrants.find((q) => q.id === activeEditingSlotId) || null;
@@ -234,122 +242,159 @@ export default function A4GangSheet() {
   const totalEnabled = quadrants.filter((q) => q.enabled && q.photoData !== null).length;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {/* Top Controls & Status Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            A4 Photo Paper Sheet (210 × 297 mm)
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            A4 Photo Sheet
+            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">210 × 297 mm</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            4 independent quadrants. Uncheck any quadrant to skip printing on reused/cut paper.
+            4 quadrants. Uncheck any quadrant to skip used paper.
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Toggle All */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg mr-2">
+          {/* Select / Deselect Group */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
             <button
               onClick={() => handleSelectAll(true)}
-              className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white rounded transition"
+              className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition shadow-2xs"
             >
               Select All
             </button>
             <button
               onClick={() => handleSelectAll(false)}
-              className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-white rounded transition"
+              className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition shadow-2xs"
             >
               Deselect All
             </button>
           </div>
 
+          {/* Sheet Presets Dropdown */}
+          <div className="relative" ref={presetsRef}>
+            <button
+              type="button"
+              onClick={() => setIsPresetsOpen(!isPresetsOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-2xs transition"
+              title="Apply layout preset to all quadrants"
+            >
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
+              <span>Presets</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isPresetsOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isPresetsOpen && (
+              <div className="absolute left-0 sm:right-0 sm:left-auto mt-1.5 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30">
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Sheet Presets
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplySheetPreset('all-2x2');
+                    setIsPresetsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-600 flex items-center justify-between"
+                >
+                  <span>All 2×2"</span>
+                  <span className="text-[10px] text-slate-400">4× each</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplySheetPreset('all-passport');
+                    setIsPresetsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-purple-600 flex items-center justify-between"
+                >
+                  <span>All Passport (35×45mm)</span>
+                  <span className="text-[10px] text-slate-400">4× each</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplySheetPreset('mixed');
+                    setIsPresetsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-between"
+                >
+                  <span>Mixed (2× 2x2 + 2× Pass)</span>
+                  <span className="text-[10px] text-slate-400">2 + 2</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplySheetPreset('all-1x1');
+                    setIsPresetsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-emerald-600 flex items-center justify-between"
+                >
+                  <span>All 1×1" Grid</span>
+                  <span className="text-[10px] text-slate-400">8× each</span>
+                </button>
+
+                {totalLoaded > 0 && (
+                  <>
+                    <div className="border-t border-slate-100 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDuplicateToAll();
+                        setIsPresetsOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 flex items-center gap-1.5"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Duplicate photo to all</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Clear All */}
-          <button
-            onClick={handleClearAll}
-            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-            title="Clear all 4 quadrants"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {totalLoaded > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+              title="Clear all 4 quadrants"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
+          <div className="h-4 w-px bg-slate-200 hidden sm:block mx-0.5" />
 
           {/* Export PDF Button */}
           <button
             onClick={handleExportPdf}
             disabled={isExportingPdf || totalLoaded === 0}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-xs transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg shadow-2xs transition"
           >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            {isExportingPdf ? 'Generating PDF...' : 'Download A4 PDF'}
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>{isExportingPdf ? 'Exporting...' : 'Download PDF'}</span>
           </button>
 
           {/* Print Button */}
           <button
             onClick={handleDirectPrint}
             disabled={totalLoaded === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-lg shadow-xs transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-lg shadow-2xs transition"
           >
             <Printer className="w-3.5 h-3.5" />
-            Print A4 Sheet ({totalEnabled}/4)
+            <span>Print ({totalEnabled}/4)</span>
           </button>
         </div>
-      </div>
-
-      {/* Quick Sheet Layout Presets Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mr-1">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            Sheet Presets:
-          </span>
-          <button
-            type="button"
-            onClick={() => handleApplySheetPreset('all-2x2')}
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition"
-          >
-            All 2×2 (Govt/Job)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplySheetPreset('all-passport')}
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
-          >
-            All Passport (35×45mm DFA)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplySheetPreset('mixed')}
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition"
-          >
-            Mixed (2x 2×2 + 2x Passport)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplySheetPreset('all-1x1')}
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition"
-          >
-            All 1×1 Grid
-          </button>
-        </div>
-
-        {/* Copy to All Quadrants shortcut */}
-        {totalLoaded > 0 && (
-          <button
-            type="button"
-            onClick={handleDuplicateToAll}
-            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-slate-700 bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded-lg transition"
-            title="Duplicate loaded photo to all enabled quadrants"
-          >
-            <Copy className="w-3.5 h-3.5 text-slate-600" />
-            Duplicate Photo to All Quadrants
-          </button>
-        )}
       </div>
 
       {/* Visual A4 Paper Representation: 2x2 Quadrant Grid */}
       <div className="flex justify-center">
-        <div className="w-full max-w-4xl bg-slate-100/70 p-4 sm:p-6 rounded-3xl border border-slate-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="w-full max-w-4xl bg-slate-200/50 p-3 sm:p-5 rounded-3xl border border-slate-200/80">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {quadrants.map((slot) => (
               <QuadrantSlot
                 key={slot.id}
@@ -362,31 +407,6 @@ export default function A4GangSheet() {
               />
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Helpful Operational Tips */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
-        <div className="bg-blue-50/60 border border-blue-200/80 p-3.5 rounded-xl flex gap-2.5">
-          <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <p>
-            <strong className="text-blue-900 block font-semibold mb-0.5">Flexible Quadrant Formats</strong>
-            Choose 2×2", Passport (35×45mm), or 1×1" independently per quadrant, or apply sheet presets to all quadrants with 1 click.
-          </p>
-        </div>
-        <div className="bg-emerald-50/60 border border-emerald-200/80 p-3.5 rounded-xl flex gap-2.5">
-          <FileCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-          <p>
-            <strong className="text-emerald-900 block font-semibold mb-0.5">Zero-Gap Cutting Borders</strong>
-            Photos abut seamlessly with crisp cutting guide borders for single-pass trimmer slicing without paper waste.
-          </p>
-        </div>
-        <div className="bg-purple-50/60 border border-purple-200/80 p-3.5 rounded-xl flex gap-2.5">
-          <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-          <p>
-            <strong className="text-purple-900 block font-semibold mb-0.5">True 300 DPI Metric Scale</strong>
-            Outputs exact 50.8mm (2×2"), 35×45mm (Passport), and 25.4mm (1×1") dimensions without stretching or scaling bugs.
-          </p>
         </div>
       </div>
 
