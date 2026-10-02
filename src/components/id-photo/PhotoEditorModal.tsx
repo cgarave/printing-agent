@@ -2,20 +2,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  X,
   Upload,
-  Crop,
-  Sparkles,
   Check,
   RotateCw,
   ZoomIn,
   ZoomOut,
   Type,
   Layers,
-  Palette,
+  ChevronDown,
 } from 'lucide-react';
 import { CustomerPhotoData, PACKAGE_PRESETS, PackagePreset, PhotoFormatCategory, PhotoSize } from '@/lib/types';
-import { processBackgroundColor } from '@/lib/background-removal';
 
 interface PhotoEditorModalProps {
   isOpen: boolean;
@@ -26,14 +22,7 @@ interface PhotoEditorModalProps {
   onSave: (data: CustomerPhotoData) => void;
 }
 
-const BG_COLORS = [
-  { name: 'Original', value: 'original', bgClass: 'bg-slate-200 text-slate-800' },
-  { name: 'Pure White', value: '#FFFFFF', bgClass: 'bg-white text-slate-900 border border-slate-300' },
-  { name: 'Royal Blue', value: '#0D47A1', bgClass: 'bg-blue-800 text-white' },
-  { name: 'Standard Red', value: '#D32F2F', bgClass: 'bg-red-700 text-white' },
-  { name: 'Neutral Gray', value: '#E5E7EB', bgClass: 'bg-gray-200 text-gray-800' },
-  { name: 'Transparent', value: 'transparent', bgClass: 'bg-slate-100 text-slate-700 border border-dashed border-slate-400' },
-];
+
 
 export default function PhotoEditorModal({
   isOpen,
@@ -93,9 +82,8 @@ export default function PhotoEditorModal({
 
   // Options
   const [selectedBgColor, setSelectedBgColor] = useState<string>(
-    initialData?.backgroundColor || 'original'
+    initialData?.backgroundColor || '#FFFFFF'
   );
-  const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [nameTagEnabled, setNameTagEnabled] = useState<boolean>(
     initialData?.nameTagEnabled || false
   );
@@ -172,31 +160,6 @@ export default function PhotoEditorModal({
       setSelectedBgColor('original');
     };
     reader.readAsDataURL(file);
-  };
-
-  // Optional 1-click Background Removal trigger
-  const handleBgColorApply = async (colorValue: string) => {
-    setSelectedBgColor(colorValue);
-    if (!imageSrc) return;
-
-    if (colorValue === 'original') {
-      setProcessedPreview(imageSrc);
-      return;
-    }
-
-    setIsRemovingBg(true);
-    try {
-      const recolored = await processBackgroundColor(imageSrc, {
-        targetColor: colorValue,
-        tolerance: 34,
-        feather: 2,
-      });
-      setProcessedPreview(recolored);
-    } catch (err) {
-      console.error('BG removal failed:', err);
-    } finally {
-      setIsRemovingBg(false);
-    }
   };
 
   // Render cropped photo onto high-res canvas with pure white frame background
@@ -327,120 +290,36 @@ export default function PhotoEditorModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden my-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden my-6">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">
-                {quadrantLabel.substring(0, 2)}
-              </span>
-              <h2 className="text-xl font-bold text-slate-800">
-                Setup Customer Package — {quadrantLabel}
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Crop portrait, optionally recolor background or add name tag, and select package bundle.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div className="border-b border-slate-100 px-6 py-4 bg-white">
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            {quadrantLabel}
+          </h2>
         </div>
 
         {/* Modal Body */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
           {/* Left Column: Photo Framing Canvas (7 cols) */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                <Crop className="w-4 h-4 text-blue-600" />
-                1. Frame & Position Photo
-              </span>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                {imageSrc ? 'Replace Photo' : 'Upload Photo'}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-            {/* Frame Size Selector: 2x2 vs Passport vs 1x1 */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-              <span className="text-[11px] font-bold text-slate-600 px-2 shrink-0">
-                Frame Format:
-              </span>
-              <div className="flex items-center gap-1 w-full">
-                <button
-                  type="button"
-                  onClick={() => handleFrameModeChange('2x2')}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
-                    frameMode === '2x2'
-                      ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-600/30'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  2×2" Frame (51×51 mm)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFrameModeChange('passport')}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center ${
-                    frameMode === 'passport'
-                      ? 'bg-white text-purple-700 shadow-xs ring-1 ring-purple-600/30'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  Passport Frame (35×45 mm)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFrameModeChange('1x1')}
-                  className={`py-1.5 px-3 rounded-lg text-xs font-bold transition text-center ${
-                    frameMode === '1x1'
-                      ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-emerald-600/30'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  1×1" Frame (25×25 mm)
-                </button>
-              </div>
-            </div>
+          <div className="lg:col-span-7 flex flex-col items-center justify-center gap-4">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
 
-            {/* Outer Workboard Container with White Background Photo Frame */}
-            <div className="w-full min-h-[410px] bg-slate-100/90 rounded-2xl border border-slate-200 flex flex-col items-center justify-center p-4 overflow-hidden relative shadow-inner">
-              {/* Active Format Badge */}
-              <div className="absolute top-2.5 left-3 flex items-center gap-1.5 z-10">
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-white/90 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-                  {frameMode === 'passport'
-                    ? 'Passport Format (35 × 45 mm)'
-                    : frameMode === '1x1'
-                    ? '1×1 inch Format (25 × 25 mm)'
-                    : '2×2 inch Format (51 × 51 mm)'}
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
-                  • Solid white photo background
-                </span>
-              </div>
-
-              {/* Physical White Background Photo Frame (2x2 or Passport Size) */}
+            {/* Direct Physical Photo Frame without heavy outside container */}
+            <div className="flex flex-col items-center justify-center w-full py-2">
               <div
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                className={`relative bg-white shadow-xl border-2 border-slate-300 rounded-sm overflow-hidden select-none cursor-grab active:cursor-grabbing transition-all ${
+                className={`relative bg-white shadow-md border border-slate-300 rounded-sm overflow-hidden select-none cursor-grab active:cursor-grabbing transition-all ${
                   frameMode === 'passport'
                     ? 'w-[280px] h-[360px]'
                     : frameMode === '1x1'
@@ -448,124 +327,121 @@ export default function PhotoEditorModal({
                     : 'w-[320px] h-[320px]'
                 }`}
               >
-              {imageSrc ? (
-                <>
-                  {/* The Scaled/Panned Image (Exact 100% match to canvas export) */}
-                  <div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden"
-                  >
-                    <img
-                      src={processedPreview || imageSrc}
-                      alt="Crop target"
-                      onLoad={(e) => {
-                        const target = e.currentTarget;
-                        if (target.naturalWidth > 0 && target.naturalHeight > 0) {
-                          setNaturalSize({ width: target.naturalWidth, height: target.naturalHeight });
-                        }
-                      }}
-                      style={{
-                        width: `${displayW}px`,
-                        height: `${displayH}px`,
-                        maxWidth: 'none',
-                        maxHeight: 'none',
-                        transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)`,
-                        transformOrigin: 'center center',
-                      }}
-                    />
-                  </div>
+                {imageSrc ? (
+                  <>
+                    {/* The Scaled/Panned Image */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                      <img
+                        src={processedPreview || imageSrc}
+                        alt="Crop target"
+                        onLoad={(e) => {
+                          const target = e.currentTarget;
+                          if (target.naturalWidth > 0 && target.naturalHeight > 0) {
+                            setNaturalSize({ width: target.naturalWidth, height: target.naturalHeight });
+                          }
+                        }}
+                        style={{
+                          width: `${displayW}px`,
+                          height: `${displayH}px`,
+                          maxWidth: 'none',
+                          maxHeight: 'none',
+                          transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)`,
+                          transformOrigin: 'center center',
+                        }}
+                      />
+                    </div>
 
-                  {/* Framing Guidelines matching the Frame Format */}
-                  {frameMode === 'passport' ? (
-                    // Passport (35x45mm) Specification Guides: Crown, Eye Line, Chin Line
-                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-3">
-                      <div className="w-full flex justify-between items-center text-[9px] text-slate-500 font-mono border-b border-dashed border-blue-400/70 pb-0.5">
-                        <span>Top of Head (Crown)</span>
-                        <span>35×45mm</span>
-                      </div>
-
-                      {/* Passport Face Oval (32-36mm face height) */}
-                      <div className="w-[185px] h-[235px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-between p-2">
-                        <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
-                          Hairline
-                        </span>
-                        <div className="w-full flex items-center justify-center gap-1">
-                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
-                          <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
-                            Eye Level
-                          </span>
-                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                    {/* Framing Guidelines */}
+                    {frameMode === 'passport' ? (
+                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-3">
+                        <div className="w-full flex justify-between items-center text-[9px] text-slate-500 font-mono border-b border-dashed border-blue-400/70 pb-0.5">
+                          <span>Top of Head (Crown)</span>
+                          <span>35×45mm</span>
                         </div>
-                        <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+
+                        {/* Passport Face Oval */}
+                        <div className="w-[185px] h-[235px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-between p-2">
+                          <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                            Hairline
+                          </span>
+                          <div className="w-full flex items-center justify-center gap-1">
+                            <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                            <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
+                              Eye Level
+                            </span>
+                            <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                          </div>
+                          <span className="text-[9px] text-blue-700 bg-white/95 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                            Chin Line
+                          </span>
+                        </div>
+
+                        <div className="w-full text-center text-[9px] text-slate-500 font-mono border-t border-dashed border-blue-400/70 pt-0.5">
+                          Bottom Edge
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4">
+                        <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                          Top of Head
+                        </span>
+
+                        {/* 2x2 / 1x1 Face Oval */}
+                        <div className="w-[180px] h-[210px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-center p-2">
+                          <div className="w-full flex items-center justify-center gap-1">
+                            <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                            <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
+                              Eye Level
+                            </span>
+                            <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
+                          </div>
+                        </div>
+
+                        <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
                           Chin Line
                         </span>
                       </div>
+                    )}
 
-                      <div className="w-full text-center text-[9px] text-slate-500 font-mono border-t border-dashed border-blue-400/70 pt-0.5">
-                        Bottom Edge
+                    {/* Live Name Tag Preview Overlay */}
+                    {nameTagEnabled && customerName && (
+                      <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-400 py-1 px-2 text-center shadow-md z-20">
+                        <p className="text-xs font-black text-black tracking-wider uppercase truncate">
+                          {customerName}
+                        </p>
                       </div>
+                    )}
+                  </>
+                ) : (
+                  /* Frame Dropzone */
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-full flex flex-col items-center justify-center p-6 text-center cursor-pointer text-slate-400 hover:text-blue-600 hover:bg-slate-50/50 transition group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 transition shadow-2xs mb-3">
+                      <Upload className="w-5 h-5" />
                     </div>
-                  ) : (
-                    // 2x2 or 1x1 Guidelines
-                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4">
-                      <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                        Top of Head
-                      </span>
-
-                      {/* 2x2 Face Oval */}
-                      <div className="w-[180px] h-[210px] rounded-full border-2 border-blue-500/70 border-dashed flex flex-col items-center justify-center p-2">
-                        <div className="w-full flex items-center justify-center gap-1">
-                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
-                          <span className="text-[8px] text-blue-700 font-semibold bg-white/95 px-1 rounded">
-                            Eye Level
-                          </span>
-                          <div className="h-px bg-blue-500/60 flex-1 border-t border-dotted border-blue-600" />
-                        </div>
-                      </div>
-
-                      <span className="text-[9px] text-slate-600 bg-white/95 px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                        Chin Line
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Live Name Tag Preview Overlay (matches exact print and quadrant banner position) */}
-                  {nameTagEnabled && customerName && (
-                    <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-400 py-1 px-2 text-center shadow-md z-20">
-                      <p className="text-xs font-black text-black tracking-wider uppercase truncate">
-                        {customerName}
-                      </p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-full flex flex-col items-center justify-center p-6 text-center cursor-pointer text-slate-400 hover:text-blue-600 transition"
-                >
-                  <Upload className="w-10 h-10 mb-2 text-slate-400" />
-                  <p className="text-xs font-bold text-slate-700">
-                    Click to upload or drag photo
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    {frameMode === 'passport'
-                      ? 'Passport format (35×45 mm)'
-                      : '2×2 format (51×51 mm)'}
-                  </p>
-                </div>
-              )}
+                    <p className="text-xs font-semibold text-slate-700 group-hover:text-blue-600 transition">
+                      Click to upload or drag photo
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {frameMode === 'passport'
+                        ? 'Passport format (35×45 mm)'
+                        : frameMode === '1x1'
+                        ? '1×1 inch format (25×25 mm)'
+                        : '2×2 inch format (51×51 mm)'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-
-            <p className="text-[11px] text-slate-500 mt-2.5 font-medium">
-              Drag to position photo within white background frame
-            </p>
-          </div>
 
             {/* Crop Controls Toolbar */}
             {imageSrc && (
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80 max-w-[360px] w-full shadow-2xs">
                 {/* Zoom */}
                 <div className="flex items-center gap-2">
-                  <ZoomOut className="w-4 h-4 text-slate-500" />
+                  <ZoomOut className="w-3.5 h-3.5 text-slate-400" />
                   <input
                     type="range"
                     min="0.5"
@@ -573,157 +449,154 @@ export default function PhotoEditorModal({
                     step="0.05"
                     value={zoom}
                     onChange={(e) => setZoom(parseFloat(e.target.value))}
-                    className="w-24 accent-blue-600"
+                    className="w-20 accent-blue-600 h-1.5"
                   />
-                  <ZoomIn className="w-4 h-4 text-slate-500" />
-                  <span className="text-xs font-mono text-slate-600 min-w-9">
+                  <ZoomIn className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-mono text-slate-500 w-8">
                     {Math.round(zoom * 100)}%
                   </span>
                 </div>
 
-                {/* Rotate & Reset */}
-                <div className="flex items-center gap-2">
+                {/* Actions */}
+                <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => setRotation((prev) => (prev + 90) % 360)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100"
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition border border-transparent hover:border-slate-200 shadow-2xs"
+                    title="Rotate 90°"
                   >
                     <RotateCw className="w-3.5 h-3.5" />
-                    Rotate 90°
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setZoom(1);
                       setRotation(0);
                       setPanX(0);
                       setPanY(0);
                     }}
-                    className="px-2.5 py-1 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-100"
+                    className="px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:bg-white rounded-md transition"
                   >
                     Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition"
+                  >
+                    <Upload className="w-3 h-3" />
+                    Replace
                   </button>
                 </div>
               </div>
             )}
-
-            {/* Optional Background Recolor Bar */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Palette className="w-3.5 h-3.5 text-blue-600" />
-                  Optional: 1-Click Background Color
-                </span>
-                {isRemovingBg && (
-                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1 animate-pulse">
-                    <Sparkles className="w-3 h-3" /> Processing...
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {BG_COLORS.map((bg) => (
-                  <button
-                    key={bg.value}
-                    disabled={!imageSrc || isRemovingBg}
-                    onClick={() => handleBgColorApply(bg.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
-                      bg.bgClass
-                    } ${
-                      selectedBgColor === bg.value
-                        ? 'ring-2 ring-blue-500 ring-offset-1 font-bold'
-                        : 'opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    {selectedBgColor === bg.value && <Check className="w-3 h-3" />}
-                    {bg.name}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* Right Column: Name Tag & Package Bundle (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col gap-5">
-            {/* 2. Name Tag Banner Option */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={nameTagEnabled}
-                    onChange={(e) => setNameTagEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 accent-blue-600"
-                  />
-                  <Type className="w-4 h-4 text-blue-600" />
-                  Print Name Tag on Bottom
+          {/* Right Column: Settings & Package Bundles (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col gap-3.5">
+            {/* Card 1: Frame Format & Name Tag */}
+            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 flex flex-col gap-3">
+              {/* Frame Format Dropdown */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Frame Format
                 </label>
-                <span className="text-[11px] text-slate-500">Optional</span>
+                <div className="relative">
+                  <select
+                    value={frameMode}
+                    onChange={(e) => handleFrameModeChange(e.target.value as PhotoFormatCategory)}
+                    className="w-full appearance-none bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 pr-8 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs cursor-pointer"
+                  >
+                    <option value="2x2">2×2" Frame (51 × 51 mm)</option>
+                    <option value="passport">Passport Frame (35 × 45 mm)</option>
+                    <option value="1x1">1×1" Frame (25 × 25 mm)</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
-              {nameTagEnabled && (
-                <div className="flex flex-col gap-2 mt-2">
-                  <input
-                    type="text"
-                    placeholder="e.g. JUAN D. DELA CRUZ"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs uppercase font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setCustomerName((prev) => prev.toUpperCase())}
-                      className="px-2 py-1 text-[10px] font-semibold bg-white border border-slate-200 rounded text-slate-700 hover:bg-slate-100"
-                    >
-                      ALL CAPS
-                    </button>
-                    <button
-                      onClick={() =>
-                        setCustomerName((prev) =>
-                          prev.replace(
-                            /\w\S*/g,
-                            (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-                          )
-                        )
-                      }
-                      className="px-2 py-1 text-[10px] font-semibold bg-white border border-slate-200 rounded text-slate-700 hover:bg-slate-100"
-                    >
-                      Title Case
-                    </button>
-                  </div>
+              {/* Name Tag Option */}
+              <div className="pt-2.5 border-t border-slate-200/60">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={nameTagEnabled}
+                      onChange={(e) => setNameTagEnabled(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 accent-blue-600"
+                    />
+                    <Type className="w-3.5 h-3.5 text-blue-600" />
+                    Print Name Tag on Bottom
+                  </label>
+                  <span className="text-[10px] text-slate-400">Optional</span>
                 </div>
-              )}
+
+                {nameTagEnabled && (
+                  <div className="flex flex-col gap-2 mt-2.5">
+                    <input
+                      type="text"
+                      placeholder="e.g. JUAN D. DELA CRUZ"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs uppercase font-semibold bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCustomerName((prev) => prev.toUpperCase())}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100"
+                      >
+                        ALL CAPS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCustomerName((prev) =>
+                            prev.replace(
+                              /\w\S*/g,
+                              (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+                            )
+                          )
+                        }
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100"
+                      >
+                        Title Case
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 3. Package Selection */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex-1 flex flex-col">
+            {/* Card 2: Package Bundles */}
+            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 flex flex-col">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-blue-600" />
-                  2. Select Output Package Bundle
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                  {frameMode === 'passport' ? 'Passport (35×45mm)' : frameMode === '1x1' ? '1×1" Mode' : '2×2" Mode'}
+                <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-blue-600" />
+                  Select Output Package Bundle
                 </span>
               </div>
 
               {/* Package Format Filter Tabs */}
-              <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-lg mb-3">
+              <div className="flex items-center bg-slate-200/70 p-0.5 rounded-lg mb-2.5">
                 <button
                   type="button"
                   onClick={() => setPackageFilter('2x2')}
-                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                  className={`flex-1 py-1 text-[11px] font-semibold rounded-md transition text-center ${
                     packageFilter === '2x2'
-                      ? 'bg-white text-blue-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  2×2 Bundles
+                  2×2
                 </button>
                 <button
                   type="button"
                   onClick={() => setPackageFilter('passport')}
-                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                  className={`flex-1 py-1 text-[11px] font-semibold rounded-md transition text-center ${
                     packageFilter === 'passport'
-                      ? 'bg-white text-purple-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Passport
@@ -731,29 +604,29 @@ export default function PhotoEditorModal({
                 <button
                   type="button"
                   onClick={() => setPackageFilter('1x1')}
-                  className={`flex-1 py-1 text-[11px] font-bold rounded transition text-center ${
+                  className={`flex-1 py-1 text-[11px] font-semibold rounded-md transition text-center ${
                     packageFilter === '1x1'
-                      ? 'bg-white text-emerald-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  1×1" Bundles
+                  1×1
                 </button>
                 <button
                   type="button"
                   onClick={() => setPackageFilter('all')}
-                  className={`px-2 py-1 text-[11px] font-bold rounded transition text-center ${
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition text-center ${
                     packageFilter === 'all'
-                      ? 'bg-white text-slate-800 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   All
                 </button>
               </div>
 
-              {/* Preset Cards */}
-              <div className="flex flex-col gap-2 mb-4 max-h-[220px] overflow-y-auto pr-0.5">
+              {/* Preset Cards List */}
+              <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto pr-0.5">
                 {PACKAGE_PRESETS.filter((p) => packageFilter === 'all' || p.category === packageFilter).map((preset) => {
                   const isSelected = selectedPresetId === preset.id;
                   const isPassportPreset = preset.category === 'passport';
@@ -761,18 +634,18 @@ export default function PhotoEditorModal({
                     <div
                       key={preset.id}
                       onClick={() => handlePresetSelect(preset)}
-                      className={`p-3 rounded-lg border text-left cursor-pointer transition flex items-center justify-between ${
+                      className={`p-2.5 rounded-lg border text-left cursor-pointer transition flex items-center justify-between ${
                         isSelected
                           ? isPassportPreset
-                            ? 'border-purple-600 bg-purple-50/70 shadow-xs'
-                            : 'border-blue-600 bg-blue-50/70 shadow-xs'
+                            ? 'border-purple-600 bg-purple-50/70 shadow-2xs'
+                            : 'border-blue-600 bg-blue-50/70 shadow-2xs'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       }`}
                     >
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-bold text-slate-800">{preset.name}</p>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          <p className="text-xs font-bold text-slate-800 truncate">{preset.name}</p>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
                             preset.category === 'passport'
                               ? 'bg-purple-100 text-purple-700'
                               : preset.category === '1x1'
@@ -782,7 +655,7 @@ export default function PhotoEditorModal({
                             {preset.category === 'passport' ? 'Passport' : preset.category.toUpperCase()}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{preset.description}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">{preset.description}</p>
                       </div>
                       <div
                         className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
@@ -790,7 +663,7 @@ export default function PhotoEditorModal({
                             ? isPassportPreset
                               ? 'border-purple-600 bg-purple-600 text-white'
                               : 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-slate-300'
+                            : 'border-slate-300 bg-white'
                         }`}
                       >
                         {isSelected && <Check className="w-3 h-3" />}
@@ -799,103 +672,92 @@ export default function PhotoEditorModal({
                   );
                 })}
               </div>
+            </div>
 
-              {/* Custom Quantities Picker */}
-              <div className="border-t border-slate-200 pt-3 mt-auto">
-                <span className="text-xs font-semibold text-slate-700 mb-2 block">
-                  Or Customize Photo Quantities:
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* 2x2 count */}
-                  <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                    <span className="text-[11px] font-bold text-slate-600 block">2×2"</span>
-                    <div className="flex items-center justify-center gap-1.5 mt-1">
-                      <button
-                        onClick={() => handleCustomCountChange('2x2', -1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        -
-                      </button>
-                      <span className="text-xs font-mono font-bold w-4 text-center">
-                        {customCounts['2x2']}
-                      </span>
-                      <button
-                        onClick={() => handleCustomCountChange('2x2', 1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 1x1 count */}
-                  <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                    <span className="text-[11px] font-bold text-slate-600 block">1×1"</span>
-                    <div className="flex items-center justify-center gap-1.5 mt-1">
-                      <button
-                        onClick={() => handleCustomCountChange('1x1', -1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        -
-                      </button>
-                      <span className="text-xs font-mono font-bold w-4 text-center">
-                        {customCounts['1x1']}
-                      </span>
-                      <button
-                        onClick={() => handleCustomCountChange('1x1', 1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Passport count */}
-                  <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                    <span className="text-[11px] font-bold text-slate-600 block">Passport</span>
-                    <div className="flex items-center justify-center gap-1.5 mt-1">
-                      <button
-                        onClick={() => handleCustomCountChange('passport', -1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        -
-                      </button>
-                      <span className="text-xs font-mono font-bold w-4 text-center">
-                        {customCounts['passport']}
-                      </span>
-                      <button
-                        onClick={() => handleCustomCountChange('passport', 1)}
-                        className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                      >
-                        +
-                      </button>
-                    </div>
+            {/* Card 3: Separate Container Card for Customize Photo Quantities */}
+            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-xs font-semibold text-slate-800 mb-2 block">
+                Customize Photo Quantities
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {/* 2x2 count */}
+                <div className="bg-white p-2 rounded-lg border border-slate-200/80 text-center shadow-2xs">
+                  <span className="text-[11px] font-semibold text-slate-600 block">2×2"</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('2x2', -1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-mono font-bold w-4 text-center">
+                      {customCounts['2x2']}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('2x2', 1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Live Quadrant Output Sync Summary */}
-              <div className="bg-blue-50/80 border border-blue-200/90 p-3 rounded-xl text-xs flex items-center justify-between mt-3">
-                <div>
-                  <span className="font-bold text-blue-950 block">
-                    Quadrant Output Layout ({frameMode === 'passport' ? 'Passport 35×45 mm' : frameMode === '1x1' ? '1×1" Grid' : '2×2" Combo'})
-                  </span>
-                  <span className="text-[11px] text-blue-700 font-medium">
-                    {customCounts['passport'] > 0 && `${customCounts['passport']} pcs Passport (35×45mm) `}
-                    {customCounts['2x2'] > 0 && `${customCounts['2x2']} pcs 2×2" `}
-                    {customCounts['1x1'] > 0 && `${customCounts['1x1']} pcs 1×1"`}
-                    {customCounts['passport'] === 0 && customCounts['2x2'] === 0 && customCounts['1x1'] === 0 && '0 photos configured'}
-                  </span>
+                {/* 1x1 count */}
+                <div className="bg-white p-2 rounded-lg border border-slate-200/80 text-center shadow-2xs">
+                  <span className="text-[11px] font-semibold text-slate-600 block">1×1"</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('1x1', -1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-mono font-bold w-4 text-center">
+                      {customCounts['1x1']}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('1x1', 1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white text-blue-800 border border-blue-200 shadow-2xs">
-                  105 × 148.5 mm
-                </span>
+
+                {/* Passport count */}
+                <div className="bg-white p-2 rounded-lg border border-slate-200/80 text-center shadow-2xs">
+                  <span className="text-[11px] font-semibold text-slate-600 block">Passport</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('passport', -1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-mono font-bold w-4 text-center">
+                      {customCounts['passport']}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCustomCountChange('passport', 1)}
+                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Bottom Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-1 mt-auto">
               <button
+                type="button"
                 onClick={onClose}
                 disabled={isSaving}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
@@ -903,12 +765,13 @@ export default function PhotoEditorModal({
                 Cancel
               </button>
               <button
+                type="button"
                 disabled={!imageSrc || isSaving}
                 onClick={handleSave}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition"
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-lg shadow-2xs transition"
               >
-                <Check className="w-4 h-4" />
-                {isSaving ? 'Processing & Scaling...' : `Apply to ${quadrantLabel}`}
+                <Check className="w-3.5 h-3.5" />
+                {isSaving ? 'Applying...' : 'Apply'}
               </button>
             </div>
           </div>
