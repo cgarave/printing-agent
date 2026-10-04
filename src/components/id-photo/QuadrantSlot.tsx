@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Plus, Edit2, Trash2, CheckSquare, Square, User } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckSquare, Square, User, Users } from 'lucide-react';
 import { CustomerPhotoData, PhotoFormatCategory, QuadrantSlotState } from '@/lib/types';
 import { calculateQuadrantLayout, QUADRANT_WIDTH_MM, QUADRANT_HEIGHT_MM } from '@/lib/photo-packing';
 
@@ -29,7 +29,8 @@ export default function QuadrantSlot({
     photoData?.frameMode ||
     (photoData?.customCounts.passport && !photoData.customCounts['2x2'] ? 'passport' : '2x2');
 
-  const layout = photoData ? calculateQuadrantLayout(photoData.customCounts) : null;
+  const photos = photoData?.photos && photoData.photos.length > 0 ? photoData.photos : undefined;
+  const layout = photoData ? calculateQuadrantLayout(photoData.customCounts, photos) : null;
 
   const handleEditActive = () => {
     onEditWithFormat(activeFormat);
@@ -156,11 +157,21 @@ export default function QuadrantSlot({
                 const heightPct = (item.heightMm / QUADRANT_HEIGHT_MM) * 100;
 
                 const itemImage =
-                  item.size === 'passport' && photoData.processedImagePassport
+                  item.imageToDraw ||
+                  (item.size === 'passport' && photoData.processedImagePassport
                     ? photoData.processedImagePassport
                     : (item.size === '2x2' || item.size === '1x1') && photoData.processedImage2x2
                     ? photoData.processedImage2x2
-                    : photoData.processedImage;
+                    : photoData.processedImage);
+
+                const isNameTagEnabled =
+                  item.nameTagEnabled !== undefined
+                    ? item.nameTagEnabled
+                    : photoData.nameTagEnabled;
+                const customerName =
+                  item.customerName !== undefined
+                    ? item.customerName
+                    : photoData.customerName;
 
                 return (
                   <div
@@ -173,11 +184,13 @@ export default function QuadrantSlot({
                       height: `${heightPct}%`,
                     }}
                   >
-                    <img
-                      src={itemImage}
-                      alt="Mini preview"
-                      className="w-full h-full object-cover"
-                    />
+                    {itemImage && (
+                      <img
+                        src={itemImage}
+                        alt="Mini preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
 
                     {/* Size Pill Tag */}
                     <div className="absolute top-0.5 left-0.5 bg-black/60 text-white text-[6px] font-mono px-0.5 rounded leading-none">
@@ -185,10 +198,10 @@ export default function QuadrantSlot({
                     </div>
 
                     {/* Name Tag Ribbon if enabled */}
-                    {photoData.nameTagEnabled && photoData.customerName && (
+                    {isNameTagEnabled && customerName && (
                       <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-300 py-0.5 text-center leading-none">
                         <span className="text-[6px] font-bold text-black uppercase tracking-tight truncate block px-0.5">
-                          {photoData.customerName}
+                          {customerName}
                         </span>
                       </div>
                     )}
@@ -216,9 +229,15 @@ export default function QuadrantSlot({
       {photoData && (
         <div className="px-3.5 py-2 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex items-center justify-between text-xs">
           <div className="flex items-center gap-1.5 truncate">
-            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {photoData.photos && photoData.photos.length > 1 ? (
+              <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            ) : (
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            )}
             <span className="font-medium text-slate-700 truncate text-[11px]">
-              {photoData.customerName || 'Customer Package'}
+              {photoData.photos && photoData.photos.length > 1
+                ? `${photoData.photos.length} Persons (${photoData.photos.map((p, i) => p.customerName || `Person ${i + 1}`).join(', ')})`
+                : photoData.customerName || 'Customer Package'}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0 ml-1">

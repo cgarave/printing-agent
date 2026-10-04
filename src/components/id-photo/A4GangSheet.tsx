@@ -100,6 +100,33 @@ export default function A4GangSheet() {
               ? q.photoData.processedImagePassport || q.photoData.processedImage
               : q.photoData.processedImage2x2 || q.photoData.processedImage;
 
+          const numPersons = q.photoData.photos?.length || 1;
+          const targetCounts = defaultPreset ? { ...defaultPreset.counts } : q.photoData.customCounts;
+
+          const updatedPhotos = q.photoData.photos
+            ? q.photoData.photos.map((p, idx) => {
+                const base2x2 = Math.floor(targetCounts['2x2'] / numPersons);
+                const rem2x2 = targetCounts['2x2'] % numPersons;
+                const base1x1 = Math.floor(targetCounts['1x1'] / numPersons);
+                const rem1x1 = targetCounts['1x1'] % numPersons;
+                const basePass = Math.floor(targetCounts.passport / numPersons);
+                const remPass = targetCounts.passport % numPersons;
+
+                return {
+                  ...p,
+                  processedImage:
+                    format === 'passport'
+                      ? p.processedImagePassport || p.processedImage
+                      : p.processedImage2x2 || p.processedImage,
+                  counts: {
+                    '2x2': base2x2 + (idx < rem2x2 ? 1 : 0),
+                    '1x1': base1x1 + (idx < rem1x1 ? 1 : 0),
+                    passport: basePass + (idx < remPass ? 1 : 0),
+                  },
+                };
+              })
+            : [];
+
           return {
             ...q,
             format,
@@ -107,8 +134,9 @@ export default function A4GangSheet() {
               ...q.photoData,
               frameMode: format,
               presetId: defaultPreset ? defaultPreset.id : q.photoData.presetId,
-              customCounts: defaultPreset ? { ...defaultPreset.counts } : q.photoData.customCounts,
+              customCounts: targetCounts,
               processedImage: newProcessed,
+              photos: updatedPhotos,
             },
           };
         }
@@ -136,6 +164,33 @@ export default function A4GangSheet() {
               ? q.photoData.processedImagePassport || q.photoData.processedImage
               : q.photoData.processedImage2x2 || q.photoData.processedImage;
 
+          const numPersons = q.photoData.photos?.length || 1;
+          const targetCounts = defaultPackage ? { ...defaultPackage.counts } : q.photoData.customCounts;
+
+          const updatedPhotos = q.photoData.photos
+            ? q.photoData.photos.map((p, pIdx) => {
+                const base2x2 = Math.floor(targetCounts['2x2'] / numPersons);
+                const rem2x2 = targetCounts['2x2'] % numPersons;
+                const base1x1 = Math.floor(targetCounts['1x1'] / numPersons);
+                const rem1x1 = targetCounts['1x1'] % numPersons;
+                const basePass = Math.floor(targetCounts.passport / numPersons);
+                const remPass = targetCounts.passport % numPersons;
+
+                return {
+                  ...p,
+                  processedImage:
+                    targetFormat === 'passport'
+                      ? p.processedImagePassport || p.processedImage
+                      : p.processedImage2x2 || p.processedImage,
+                  counts: {
+                    '2x2': base2x2 + (pIdx < rem2x2 ? 1 : 0),
+                    '1x1': base1x1 + (pIdx < rem1x1 ? 1 : 0),
+                    passport: basePass + (pIdx < remPass ? 1 : 0),
+                  },
+                };
+              })
+            : [];
+
           return {
             ...q,
             format: targetFormat,
@@ -143,8 +198,9 @@ export default function A4GangSheet() {
               ...q.photoData,
               frameMode: targetFormat,
               presetId: defaultPackage ? defaultPackage.id : q.photoData.presetId,
-              customCounts: defaultPackage ? { ...defaultPackage.counts } : q.photoData.customCounts,
+              customCounts: targetCounts,
               processedImage: newProcessed,
+              photos: updatedPhotos,
             },
           };
         }
@@ -166,7 +222,17 @@ export default function A4GangSheet() {
         ...q,
         enabled: true,
         format: sourcePhoto.frameMode,
-        photoData: { ...sourcePhoto },
+        photoData: {
+          ...sourcePhoto,
+          customCounts: { ...sourcePhoto.customCounts },
+          photos: sourcePhoto.photos
+            ? sourcePhoto.photos.map((p) => ({
+                ...p,
+                counts: { ...p.counts },
+                cropState: p.cropState ? { ...p.cropState } : undefined,
+              }))
+            : [],
+        },
       }))
     );
   };

@@ -49,9 +49,10 @@ export async function generateA4GangSheetPdf(
 
     const offset = QUADRANT_OFFSETS[slot.id];
     const { photoData } = slot;
+    const photos = photoData.photos && photoData.photos.length > 0 ? photoData.photos : undefined;
 
-    // Calculate layout for this quadrant
-    const layout = calculateQuadrantLayout(photoData.customCounts);
+    // Calculate layout for this quadrant with photo assignments
+    const layout = calculateQuadrantLayout(photoData.customCounts, photos);
 
     for (const item of layout.items) {
       const photoX = offset.x + item.xMm;
@@ -59,11 +60,14 @@ export async function generateA4GangSheetPdf(
 
       // 1. Draw photo image with exact aspect ratio
       const imageToDraw =
-        item.size === 'passport' && photoData.processedImagePassport
+        item.imageToDraw ||
+        (item.size === 'passport' && photoData.processedImagePassport
           ? photoData.processedImagePassport
           : (item.size === '2x2' || item.size === '1x1') && photoData.processedImage2x2
           ? photoData.processedImage2x2
-          : photoData.processedImage;
+          : photoData.processedImage);
+
+      if (!imageToDraw) continue;
 
       try {
         doc.addImage(
@@ -90,8 +94,13 @@ export async function generateA4GangSheetPdf(
         );
       }
 
-      // 2. Draw Name Tag Banner if enabled
-      if (photoData.nameTagEnabled && photoData.customerName) {
+      // 2. Draw Name Tag Banner if enabled for this item/person
+      const isNameTagEnabled =
+        item.nameTagEnabled !== undefined ? item.nameTagEnabled : photoData.nameTagEnabled;
+      const customerName =
+        item.customerName !== undefined ? item.customerName : photoData.customerName;
+
+      if (isNameTagEnabled && customerName) {
         const tagHeightMm = item.size === '2x2' ? 6.5 : item.size === 'passport' ? 5.5 : 4.0;
         const tagY = photoY + item.heightMm - tagHeightMm;
 
@@ -112,7 +121,7 @@ export async function generateA4GangSheetPdf(
 
         const textX = photoX + item.widthMm / 2;
         const textY = tagY + tagHeightMm / 2 + (fontSize * 0.35) / 2;
-        doc.text(photoData.customerName, textX, textY, { align: 'center' });
+        doc.text(customerName, textX, textY, { align: 'center' });
       }
 
       // 3. Draw crisp visible cutting guide border around each photo

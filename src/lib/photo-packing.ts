@@ -1,4 +1,4 @@
-import { PhotoSize, PHOTO_SIZES } from './types';
+import { PhotoSize, PHOTO_SIZES, CustomerPhotoEntry } from './types';
 
 export interface PackedPhotoItem {
   id: string;
@@ -8,6 +8,10 @@ export interface PackedPhotoItem {
   widthMm: number;
   heightMm: number;
   label: string;
+  photoId?: string;
+  customerName?: string;
+  nameTagEnabled?: boolean;
+  imageToDraw?: string;
 }
 
 export interface QuadrantLayout {
@@ -22,14 +26,17 @@ export const QUADRANT_HEIGHT_MM = 148.5;
 /**
  * Computes exact millimeter coordinates for photos packed within a 105x148.5mm quadrant.
  * Accurately centers photos vertically and prevents quadrant overflow.
+ * Associates each packed slot with the designated person's photo when multiple photos are provided.
  */
-export function calculateQuadrantLayout(counts: {
-  '2x2': number;
-  '1x1': number;
-  'passport': number;
-}): QuadrantLayout {
+export function calculateQuadrantLayout(
+  counts: {
+    '2x2': number;
+    '1x1': number;
+    'passport': number;
+  },
+  photos?: CustomerPhotoEntry[]
+): QuadrantLayout {
   const items: PackedPhotoItem[] = [];
-  const gapMm = 0; // 0mm gap: seamless abutting photos with shared cutting lines
 
   const num2x2 = counts['2x2'] || 0;
   const numPassport = counts['passport'] || 0;
@@ -63,6 +70,16 @@ export function calculateQuadrantLayout(counts: {
 
   // 1. Pack 2x2 photos (50.8mm x 50.8mm)
   if (num2x2 > 0) {
+    const assignments2x2: CustomerPhotoEntry[] = [];
+    if (photos && photos.length > 0) {
+      for (const p of photos) {
+        const count = p.counts['2x2'] || 0;
+        for (let c = 0; c < count; c++) {
+          assignments2x2.push(p);
+        }
+      }
+    }
+
     const maxCols2x2 = 2;
     const startX2x2 = Math.max(
       1.0,
@@ -75,6 +92,10 @@ export function calculateQuadrantLayout(counts: {
       const x = startX2x2 + col * size2x2.widthMm;
       const y = currentY + row * size2x2.heightMm;
 
+      const assignedPhoto = assignments2x2[i] || photos?.[0];
+      const imageToDraw =
+        assignedPhoto?.processedImage2x2 || assignedPhoto?.processedImage;
+
       items.push({
         id: `photo-2x2-${itemIdCounter++}`,
         size: '2x2',
@@ -83,6 +104,10 @@ export function calculateQuadrantLayout(counts: {
         widthMm: size2x2.widthMm,
         heightMm: size2x2.heightMm,
         label: '2×2"',
+        photoId: assignedPhoto?.id,
+        customerName: assignedPhoto?.customerName,
+        nameTagEnabled: assignedPhoto?.nameTagEnabled,
+        imageToDraw,
       });
     }
 
@@ -91,6 +116,16 @@ export function calculateQuadrantLayout(counts: {
 
   // 2. Pack Passport photos (35mm x 45mm)
   if (numPassport > 0) {
+    const assignmentsPass: CustomerPhotoEntry[] = [];
+    if (photos && photos.length > 0) {
+      for (const p of photos) {
+        const count = p.counts['passport'] || 0;
+        for (let c = 0; c < count; c++) {
+          assignmentsPass.push(p);
+        }
+      }
+    }
+
     const maxColsPass = 2;
     const startXPass = Math.max(
       2.0,
@@ -103,6 +138,10 @@ export function calculateQuadrantLayout(counts: {
       const x = startXPass + col * sizePass.widthMm;
       const y = currentY + row * sizePass.heightMm;
 
+      const assignedPhoto = assignmentsPass[i] || photos?.[0];
+      const imageToDraw =
+        assignedPhoto?.processedImagePassport || assignedPhoto?.processedImage;
+
       items.push({
         id: `photo-pass-${itemIdCounter++}`,
         size: 'passport',
@@ -111,6 +150,10 @@ export function calculateQuadrantLayout(counts: {
         widthMm: sizePass.widthMm,
         heightMm: sizePass.heightMm,
         label: 'Passport',
+        photoId: assignedPhoto?.id,
+        customerName: assignedPhoto?.customerName,
+        nameTagEnabled: assignedPhoto?.nameTagEnabled,
+        imageToDraw,
       });
     }
 
@@ -119,6 +162,16 @@ export function calculateQuadrantLayout(counts: {
 
   // 3. Pack 1x1 photos (25.4mm x 25.4mm)
   if (num1x1 > 0) {
+    const assignments1x1: CustomerPhotoEntry[] = [];
+    if (photos && photos.length > 0) {
+      for (const p of photos) {
+        const count = p.counts['1x1'] || 0;
+        for (let c = 0; c < count; c++) {
+          assignments1x1.push(p);
+        }
+      }
+    }
+
     const maxCols1x1 = 4;
     const totalWidth1x1 = maxCols1x1 * size1x1.widthMm;
     const startX1x1 = Math.max(1.0, (QUADRANT_WIDTH_MM - totalWidth1x1) / 2);
@@ -129,6 +182,10 @@ export function calculateQuadrantLayout(counts: {
       const x = startX1x1 + col * size1x1.widthMm;
       const y = currentY + row * size1x1.heightMm;
 
+      const assignedPhoto = assignments1x1[i] || photos?.[0];
+      const imageToDraw =
+        assignedPhoto?.processedImage2x2 || assignedPhoto?.processedImage;
+
       items.push({
         id: `photo-1x1-${itemIdCounter++}`,
         size: '1x1',
@@ -137,6 +194,10 @@ export function calculateQuadrantLayout(counts: {
         widthMm: size1x1.widthMm,
         heightMm: size1x1.heightMm,
         label: '1×1"',
+        photoId: assignedPhoto?.id,
+        customerName: assignedPhoto?.customerName,
+        nameTagEnabled: assignedPhoto?.nameTagEnabled,
+        imageToDraw,
       });
     }
   }

@@ -116,21 +116,65 @@ export const PACKAGE_PRESETS: PackagePreset[] = [
   },
 ];
 
-export interface CustomerPhotoData {
+export interface CustomerPhotoEntry {
+  id: string; // unique ID
   originalImage: string; // Base64 or object URL
   processedImage: string; // Active preview
   processedImage2x2?: string; // Crisp 1:1 square crop for 2x2 and 1x1
   processedImagePassport?: string; // Crisp 7:9 crop for Passport (35x45mm)
-  frameMode: '2x2' | 'passport' | '1x1';
   nameTagEnabled: boolean;
   customerName: string;
-  backgroundColor: string; // 'transparent', '#FFFFFF', '#0D47A1', '#D32F2F', '#E0E0E0'
+  counts: {
+    '2x2': number;
+    '1x1': number;
+    'passport': number;
+  };
+  cropState?: {
+    zoom: number;
+    rotation: number;
+    panX: number;
+    panY: number;
+    frameMode: PhotoFormatCategory;
+  };
+}
+
+export function getQuadrantTotalCounts(
+  photos: { counts?: { '2x2'?: number; '1x1'?: number; passport?: number } }[]
+): {
+  '2x2': number;
+  '1x1': number;
+  'passport': number;
+} {
+  if (!photos || !Array.isArray(photos)) {
+    return { '2x2': 0, '1x1': 0, passport: 0 };
+  }
+  return photos.reduce(
+    (acc, p) => ({
+      '2x2': acc['2x2'] + (p?.counts?.['2x2'] || 0),
+      '1x1': acc['1x1'] + (p?.counts?.['1x1'] || 0),
+      passport: acc.passport + (p?.counts?.passport || 0),
+    }),
+    { '2x2': 0, '1x1': 0, passport: 0 }
+  );
+}
+
+export interface CustomerPhotoData {
+  photos: CustomerPhotoEntry[]; // One or more individual customer photos
+  frameMode: '2x2' | 'passport' | '1x1';
   presetId: string;
   customCounts: {
     '2x2': number;
     '1x1': number;
     'passport': number;
   };
+  // Single-photo / backward compatibility convenience fields
+  originalImage?: string;
+  processedImage?: string;
+  processedImage2x2?: string;
+  processedImagePassport?: string;
+  nameTagEnabled?: boolean;
+  customerName?: string;
+  backgroundColor?: string;
 }
 
 export type QuadrantId = 'q1' | 'q2' | 'q3' | 'q4';
