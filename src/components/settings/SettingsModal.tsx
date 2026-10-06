@@ -36,6 +36,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('gemini_api_key', apiKey.trim());
       localStorage.setItem('shop_name', shopName.trim());
+      window.dispatchEvent(new Event('settings_saved'));
       setSavedSuccess(true);
       setTimeout(() => {
         setSavedSuccess(false);
@@ -128,7 +129,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
             </div>
 
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2 w-full mb-2">
               <input 
                 type="text" 
                 readOnly 
@@ -143,6 +144,68 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               >
                 Open / Test
               </a>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure? Your old QR code will stop working.')) {
+                  const newId = `shop-${Math.random().toString(36).substr(2, 9)}`;
+                  setShopId(newId);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('shop_id', newId);
+                    // Force page reload to re-initialize PeerJS with the new ID
+                    window.location.reload();
+                  }
+                }
+              }}
+              className="text-[11px] font-bold text-red-600 hover:text-red-700 underline mb-4"
+            >
+              Regenerate QR Code
+            </button>
+
+            <div className="w-full border-t border-slate-200 pt-4 mt-2 flex flex-col items-start text-left">
+              <label className="block text-sm font-bold text-slate-700 mb-1">PC-to-PC Sync (Beta)</label>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Want to view this queue on a 2nd computer? Copy the Host ID from the main PC and enter it here on the 2nd PC.
+              </p>
+              
+              <div className="w-full mb-3">
+                <label className="text-[10px] font-bold text-slate-600 block mb-1">This PC's Host ID:</label>
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={shopId} 
+                  className="w-full px-3 py-2 text-[10px] font-mono border border-slate-300 rounded-lg bg-slate-50 outline-none text-slate-500"
+                />
+              </div>
+
+              <div className="w-full">
+                <label className="text-[10px] font-bold text-slate-600 block mb-1">Connect to another Host PC:</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Paste Host ID here..."
+                    id="syncHostInput"
+                    defaultValue={typeof window !== 'undefined' ? localStorage.getItem('sync_host_id') || '' : ''}
+                    className="flex-1 px-3 py-2 text-[10px] font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button 
+                    onClick={() => {
+                      const input = document.getElementById('syncHostInput') as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        localStorage.setItem('sync_host_id', input.value.trim());
+                        window.location.reload();
+                      } else {
+                        localStorage.removeItem('sync_host_id');
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-3 py-2 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shrink-0"
+                  >
+                    Link PC
+                  </button>
+                </div>
+                <p className="text-[9px] text-slate-400 mt-1">Leave blank and click Link PC to disconnect.</p>
+              </div>
             </div>
           </div>
         </div>

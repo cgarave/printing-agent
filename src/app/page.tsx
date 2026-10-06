@@ -30,10 +30,19 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('shop_name');
-      if (stored) setShopName(stored);
+      const loadShopName = () => {
+        const stored = localStorage.getItem('shop_name');
+        if (stored) setShopName(stored);
+      };
+      
+      // Load initially
+      loadShopName();
+      
+      // Listen for changes
+      window.addEventListener('settings_saved', loadShopName);
+      return () => window.removeEventListener('settings_saved', loadShopName);
     }
-  }, [isSettingsOpen]);
+  }, []);
 
   const handleOpenQueue = () => {
     setIsQueueOpen(true);
