@@ -176,7 +176,7 @@ export default function QuadrantSlot({
                 return (
                   <div
                     key={item.id}
-                    className="absolute border border-slate-700 overflow-hidden bg-white shadow-2xs group/item"
+                    className="absolute border border-slate-300 overflow-hidden bg-white shadow-2xs group/item"
                     style={{
                       left: `${leftPct}%`,
                       top: `${topPct}%`,

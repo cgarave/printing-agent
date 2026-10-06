@@ -151,7 +151,7 @@ export async function generateA4GangSheetPdf(
       }
 
       // 3. Draw crisp visible cutting guide border around each photo
-      doc.setDrawColor(0, 0, 0);
+      doc.setDrawColor(210, 210, 210);
       doc.setLineWidth(0.15); // ~0.42pt precision cutting guide border
       doc.rect(photoX, photoY, item.widthMm, item.heightMm, 'S');
     }

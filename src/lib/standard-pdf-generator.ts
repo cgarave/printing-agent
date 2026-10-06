@@ -115,8 +115,8 @@ export async function generateStandardPhotosPdf(
       doc.addImage(photoBase64, 'JPEG', x, y, drawW, drawH);
     }
 
-    doc.setDrawColor(200, 200, 200); // subtle gray
-    doc.setLineWidth(0.2);
+    doc.setDrawColor(210, 210, 210); // subtle gray
+    doc.setLineWidth(0.15);
     doc.rect(x, y, drawW, drawH);
   }
 
