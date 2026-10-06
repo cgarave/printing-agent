@@ -1,31 +1,17 @@
 import jsPDF from 'jspdf';
 import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES, PAPER_SIZES } from './standard-sizes';
 
-interface PrintItem {
+export interface PrintItem {
   id: string;
   processedImage: string; // base64
   copies: number;
 }
 
-export async function generateStandardPhotosPdf(
-  items: PrintItem[],
-  targetSizeKey: StandardSizeKey,
-  paperSizeKey: PaperSizeKey
-): Promise<jsPDF> {
+export function calculatePaperLayout(targetSizeKey: StandardSizeKey, paperSizeKey: PaperSizeKey) {
   const paper = PAPER_SIZES[paperSizeKey];
   const photoSize = STANDARD_PHOTO_SIZES[targetSizeKey];
 
-  // We have a list of images to print, and a number of copies for each.
-  // Flatten the list into individual photo instances.
-  const photosToPrint: string[] = [];
-  for (const item of items) {
-    for (let i = 0; i < item.copies; i++) {
-      photosToPrint.push(item.processedImage);
-    }
-  }
-
-  // Calculate grid packing
-  const paddingMm = 5; // Minimum margin around the edge of the paper
+  const paddingMm = 5; // Minimum margin
   const availW = paper.widthMm - paddingMm * 2;
   const availH = paper.heightMm - paddingMm * 2;
 
@@ -53,11 +39,38 @@ export async function generateStandardPhotosPdf(
     drawH = photoSize.widthMm;
   }
 
-  const photosPerPage = cols * rows;
+  return {
+    cols,
+    rows,
+    drawW,
+    drawH,
+    isLandscapePhoto,
+    photosPerPage: cols * rows,
+    paddingMm,
+    paperWidth: paper.widthMm,
+    paperHeight: paper.heightMm,
+  };
+}
 
-  // Initialize PDF
-  // jsPDF orientation is 'p' or 'l'. We'll stick to 'p' (portrait) paper for consistency,
-  // and just rotate/draw the images if they are landscape. Wait, if the paper itself is 'a4' portrait, we just draw with drawW/drawH.
+export async function generateStandardPhotosPdf(
+  items: PrintItem[],
+  targetSizeKey: StandardSizeKey,
+  paperSizeKey: PaperSizeKey
+): Promise<jsPDF> {
+  const paper = PAPER_SIZES[paperSizeKey];
+  const photoSize = STANDARD_PHOTO_SIZES[targetSizeKey];
+
+  // Flatten the list into individual photo instances.
+  const photosToPrint: string[] = [];
+  for (const item of items) {
+    for (let i = 0; i < item.copies; i++) {
+      photosToPrint.push(item.processedImage);
+    }
+  }
+
+  const layout = calculatePaperLayout(targetSizeKey, paperSizeKey);
+  const { cols, rows, drawW, drawH, isLandscapePhoto, photosPerPage, paddingMm } = layout;
+
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
@@ -68,7 +81,8 @@ export async function generateStandardPhotosPdf(
     return doc; // Empty doc or cannot fit
   }
 
-  // Calculate starting X and Y to center the grid on the page
+  const availW = paper.widthMm - paddingMm * 2;
+  const availH = paper.heightMm - paddingMm * 2;
   const gridW = cols * drawW;
   const gridH = rows * drawH;
   const startX = paddingMm + (availW - gridW) / 2;
@@ -91,36 +105,19 @@ export async function generateStandardPhotosPdf(
 
     const x = startX + col * drawW;
     const y = startY + row * drawH;
-
-    // We might need to rotate the image 90 degrees if it's placed in landscape slot but the cropped image is portrait.
-    // Wait, the cropper outputs the image exactly as the targetSizeKey aspect ratio.
-    // So if target is 4R (102x152), the image is 102 wide, 152 tall.
-    // If our grid slot is landscape (drawW=152, drawH=102), we MUST rotate the image 90 degrees to fit.
     
     if (isLandscapePhoto) {
-      // jsPDF drawImage with rotation rotates around the top-left coordinate by default,
-      // or we can just specify a rotation angle.
-      // Easiest is to use the center of the bounding box as the center of rotation.
       const cx = x + drawW / 2;
       const cy = y + drawH / 2;
       
-      // When rotating 90 deg: image width becomes height, height becomes width.
-      // Image original dimensions: photoSize.widthMm, photoSize.heightMm
-      // We draw it rotated by -90 around its center.
       doc.addImage(photoBase64, 'JPEG', cx - photoSize.widthMm / 2, cy - photoSize.heightMm / 2, photoSize.widthMm, photoSize.heightMm, undefined, 'FAST', -90);
     } else {
       doc.addImage(photoBase64, 'JPEG', x, y, drawW, drawH);
     }
 
-    // Draw subtle gray cutting guides
     doc.setDrawColor(200, 200, 200); // subtle gray
     doc.setLineWidth(0.2);
-
-    // Outline of the photo
     doc.rect(x, y, drawW, drawH);
-    
-    // Tiny crop marks at the corners (optional, rect is usually enough if it's gray)
-    // The rect itself serves as a cutting guide.
   }
 
   return doc;

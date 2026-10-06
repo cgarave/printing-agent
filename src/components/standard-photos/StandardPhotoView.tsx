@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES } from '@/lib/standard-sizes';
+import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES, PAPER_SIZES } from '@/lib/standard-sizes';
 import { UploadCloud, Image as ImageIcon, Trash2, Printer, Download, Crop, Plus, Minus, X } from 'lucide-react';
 import StandardPhotoCropperModal from './StandardPhotoCropperModal';
-import { generateStandardPhotosPdf } from '@/lib/standard-pdf-generator';
+import { generateStandardPhotosPdf, calculatePaperLayout } from '@/lib/standard-pdf-generator';
 
 interface PhotoItem {
   id: string;
@@ -280,7 +280,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
           </div>
         </div>
 
-        {/* Right: Gallery */}
+        {/* Center: Gallery */}
         <div className="flex-1 w-full bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs min-h-[400px]">
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <h3 className="font-semibold text-slate-800 text-sm">Photos to Print ({photos.length})</h3>
@@ -298,7 +298,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
               <p className="text-xs">Click 'Add Photos' to start</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {photos.map(p => (
                 <div key={p.id} className="group relative bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition">
                   <div className="relative aspect-square bg-slate-100">
@@ -348,6 +348,70 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
               ))}
             </div>
           )}
+        </div>
+
+        {/* Right: Paper Preview */}
+        <div className="w-full md:w-80 flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
+          <h3 className="font-semibold text-slate-800 text-sm w-full mb-4">Paper Preview</h3>
+          <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
+            {PAPER_SIZES[paperSize].label} divided into {calculatePaperLayout(targetSize, paperSize).photosPerPage} slots for {STANDARD_PHOTO_SIZES[targetSize].label}
+          </p>
+          
+          <div className="relative bg-white border border-slate-300 shadow-sm overflow-hidden select-none flex items-center justify-center"
+               style={{
+                 width: '240px',
+                 height: `${240 * (PAPER_SIZES[paperSize].heightMm / PAPER_SIZES[paperSize].widthMm)}px`,
+               }}>
+            
+            {(() => {
+              const layout = calculatePaperLayout(targetSize, paperSize);
+              const { cols, rows, drawW, drawH, photosPerPage, paddingMm, paperWidth, paperHeight } = layout;
+              
+              const scale = 240 / paperWidth;
+              
+              const gridW = cols * drawW;
+              const gridH = rows * drawH;
+              const startX = paddingMm + (paperWidth - paddingMm * 2 - gridW) / 2;
+              const startY = paddingMm + (paperHeight - paddingMm * 2 - gridH) / 2;
+              
+              // Flatten photos
+              const flattenedPhotos: string[] = [];
+              for (const p of photos) {
+                for (let i = 0; i < p.copies; i++) {
+                  flattenedPhotos.push(p.croppedImage);
+                }
+              }
+
+              return (
+                <div className="absolute" style={{
+                  top: startY * scale,
+                  left: startX * scale,
+                  width: gridW * scale,
+                  height: gridH * scale,
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${cols}, ${drawW * scale}px)`,
+                  gridTemplateRows: `repeat(${rows}, ${drawH * scale}px)`,
+                }}>
+                  {Array.from({ length: photosPerPage }).map((_, i) => {
+                    const src = flattenedPhotos[i];
+                    return (
+                      <div key={i} className="border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                        {src ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={src} alt="Slot" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">{i + 1}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+          <div className="mt-4 text-[10px] text-slate-400 text-center">
+            {photos.length === 0 ? "Empty slots" : `Showing page 1`}
+          </div>
         </div>
       </div>
 
