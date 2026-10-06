@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, Layers, Trash2, Printer, Download, X } from 'lucide-react';
+import { UploadCloud, Layers, Trash2, Printer, Download, X, Copy } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBatchPdf, getGridLayoutConfig, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
 
@@ -92,6 +92,14 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
     if (e.dataTransfer.files) {
       await processFiles(Array.from(e.dataTransfer.files));
     }
+  };
+
+  const duplicateImage = (index: number) => {
+    setImages((prev) => {
+      const copy = [...prev];
+      copy.splice(index + 1, 0, prev[index]);
+      return copy;
+    });
   };
 
   const removeImage = (index: number) => {
@@ -325,8 +333,21 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                 <div key={i} className="relative group aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={src} alt="Upload" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <button onClick={() => removeImage(i)} className="bg-white text-red-600 p-1.5 rounded-full hover:scale-110 transition">
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition flex items-center justify-center gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => duplicateImage(i)} 
+                      title="Duplicate image" 
+                      className="bg-white text-slate-700 hover:text-blue-600 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => removeImage(i)} 
+                      title="Remove image" 
+                      className="bg-white text-red-600 hover:text-red-700 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
