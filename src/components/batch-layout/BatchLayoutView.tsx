@@ -13,7 +13,7 @@ export interface QueueImage {
 }
 
 export interface PageFraction {
-  colFractions?: number[];
+  colFractions?: number[][];
   rowFractions?: number[];
 }
 
@@ -36,7 +36,6 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle file from print queue
   useEffect(() => {
     if (initialFile) {
       processFiles([initialFile]);
@@ -44,7 +43,6 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile]);
 
-  // Reset fractions on layout change
   useEffect(() => {
     setPageFractions([]);
   }, [layout, orientation]);
@@ -201,65 +199,93 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
     }
   };
 
-  // --- Resizing Logic for the preview grid ---
-  const containerRef = useRef<HTMLDivElement>(null);
+  const aspectRatios: Record<PaperSize, number> = {
+    a4: 210 / 297,
+    letter: 215.9 / 279.4,
+    legal: 215.9 / 330.2
+  };
+  const previewRatio = aspectRatios[paperSize];
+
+  // For snapping
+  const SNAP_THRESHOLD = 0.02;
 
   const handleDividerDrag = useCallback((
     e: React.MouseEvent,
     pageIndex: number,
     dividerIndex: number,
-    type: 'row' | 'col'
+    type: 'row' | 'col',
+    rowIndex?: number // defined if type is 'col'
   ) => {
     e.preventDefault();
     
-    // Fallback to page 0 if unified layout
     const targetPageIndex = unifiedLayout ? 0 : pageIndex;
-    
-    // Get current config for the page
     const currentFrac = pageFractions[targetPageIndex] || pageFractions[0] || {};
     const pageConfig = getGridLayoutConfig(layout, orientation, currentFrac.colFractions, currentFrac.rowFractions);
     
     const startPos = type === 'row' ? e.clientY : e.clientX;
-    const initialFractions = type === 'row' ? [...pageConfig.rowFractions] : [...pageConfig.colFractions];
+    const initialFractions = type === 'row' ? [...pageConfig.rowFractions] : [...pageConfig.colFractions[rowIndex!]];
     
-    // We need the container to measure the drag delta accurately
-    // The container size depends on the paper preview dimensions.
-    const previewRatio = aspectRatios[paperSize];
     const previewWidth = 200;
     const previewHeight = 200 / previewRatio;
+    
+    // Calculate all possible snap points for columns
+    let snapPoints: number[] = [];
+    if (type === 'col') {
+      pageConfig.colFractions.forEach((rFractions, rIdx) => {
+        if (rIdx === rowIndex) return; // don't snap to our own row
+        let acc = 0;
+        for (let i = 0; i < rFractions.length - 1; i++) {
+          acc += rFractions[i];
+          snapPoints.push(acc);
+        }
+      });
+    }
     
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaPx = type === 'row' ? (moveEvent.clientY - startPos) : (moveEvent.clientX - startPos);
       const dimensionPx = type === 'row' ? previewHeight : previewWidth;
-      const deltaFrac = deltaPx / dimensionPx;
+      const deltaFracRaw = deltaPx / dimensionPx;
       
       const newFractions = [...initialFractions];
       
-      const maxDelta = initialFractions[dividerIndex + 1] - 0.05; // min 5%
+      const maxDelta = initialFractions[dividerIndex + 1] - 0.05;
       const minDelta = -initialFractions[dividerIndex] + 0.05;
-      const clampedDelta = Math.max(minDelta, Math.min(maxDelta, deltaFrac));
+      let clampedDelta = Math.max(minDelta, Math.min(maxDelta, deltaFracRaw));
+      
+      // Magnetic snapping for columns
+      if (type === 'col') {
+        const originalDividerPos = initialFractions.slice(0, dividerIndex + 1).reduce((a,b)=>a+b, 0);
+        const intendedPos = originalDividerPos + clampedDelta;
+        
+        let snappedPos = intendedPos;
+        for (const sp of snapPoints) {
+          if (Math.abs(intendedPos - sp) < SNAP_THRESHOLD) {
+            snappedPos = sp;
+            break;
+          }
+        }
+        clampedDelta = snappedPos - originalDividerPos;
+      }
       
       newFractions[dividerIndex] = initialFractions[dividerIndex] + clampedDelta;
       newFractions[dividerIndex + 1] = initialFractions[dividerIndex + 1] - clampedDelta;
       
       setPageFractions((prev) => {
         const next = [...prev];
-        // Ensure the array covers up to targetPageIndex
-        while (next.length <= targetPageIndex) {
-          next.push(prev[0] || {});
-        }
+        while (next.length <= targetPageIndex) next.push(prev[0] || {});
         
         const pageUpdate = { ...next[targetPageIndex] };
-        if (type === 'row') pageUpdate.rowFractions = newFractions;
-        else pageUpdate.colFractions = newFractions;
-        
-        if (unifiedLayout) {
-          // Update page 0, clear others to inherit
-          return [pageUpdate];
+        if (type === 'row') {
+          pageUpdate.rowFractions = newFractions;
         } else {
-          next[targetPageIndex] = pageUpdate;
-          return next;
+          const newColFracs = pageConfig.colFractions.map(r => [...r]);
+          newColFracs[rowIndex!] = newFractions;
+          pageUpdate.colFractions = newColFracs;
         }
+        
+        if (unifiedLayout) return [pageUpdate];
+        next[targetPageIndex] = pageUpdate;
+        return next;
       });
     };
 
@@ -270,15 +296,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [layout, orientation, pageFractions, unifiedLayout, paperSize]); // wait, I removed gridFractions from state. Let's fix deps.
-
-  // Preview dimensions (scaled down)
-  const aspectRatios: Record<PaperSize, number> = {
-    a4: 210 / 297,
-    letter: 215.9 / 279.4,
-    legal: 215.9 / 330.2
-  };
-  const previewRatio = aspectRatios[paperSize];
+  }, [layout, orientation, pageFractions, unifiedLayout, previewRatio]);
 
   const renderCellContent = (index: number) => {
     const img = images[index];
@@ -300,14 +318,6 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   const renderPreviewPage = (pageIndex: number) => {
     const fractions = pageFractions[pageIndex] || pageFractions[0] || {};
     const pageConfig = getGridLayoutConfig(layout, orientation, fractions.colFractions, fractions.rowFractions);
-    
-    // Calculate cumulative offsets for dividers
-    const colOffsets: number[] = [];
-    let accCol = 0;
-    for (let c = 0; c < pageConfig.cols; c++) {
-      accCol += pageConfig.colFractions[c];
-      colOffsets.push(accCol);
-    }
     
     const rowOffsets: number[] = [];
     let accRow = 0;
@@ -331,32 +341,43 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
       >
         <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-sm z-20 pointer-events-none shadow-sm backdrop-blur-sm font-medium tracking-wide">Page {pageIndex + 1}</div>
         
-        {/* Draw the Grid cells */}
+        {/* Draw the Grid cells & Vertical dividers inside rows */}
         <div className="w-full h-full relative" style={{ display: 'flex', flexDirection: 'column', gap: `${gapPx}px` }}>
-          {Array.from({ length: pageConfig.rows }).map((_, r) => (
-            <div key={`row-${r}`} className="w-full flex relative" style={{ height: `calc(${pageConfig.rowFractions[r] * 100}% - ${gapPx * (pageConfig.rows - 1) / pageConfig.rows}px)`, gap: `${gapPx}px` }}>
-              {Array.from({ length: pageConfig.cols }).map((_, c) => {
-                const slotIndex = pageIndex * layout + (r * pageConfig.cols + c);
-                // Even for layouts with empty slots, we render the grid cell so structure is clear.
-                return (
-                  <div key={`cell-${c}`} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center relative" style={{ width: `calc(${pageConfig.colFractions[c] * 100}% - ${gapPx * (pageConfig.cols - 1) / pageConfig.cols}px)` }}>
-                    {slotIndex < (pageIndex + 1) * layout ? renderCellContent(slotIndex) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+          {Array.from({ length: pageConfig.rows }).map((_, r) => {
+            const rColFractions = pageConfig.colFractions[r];
+            
+            // Calculate column offsets for this specific row
+            const colOffsets: number[] = [];
+            let accCol = 0;
+            for (let c = 0; c < pageConfig.cols; c++) {
+              accCol += rColFractions[c];
+              colOffsets.push(accCol);
+            }
 
-        {/* Vertical Dividers (Columns) */}
-        {colOffsets.slice(0, -1).map((offset, i) => (
-          <div 
-            key={`vdiv-${i}`}
-            className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
-            style={{ left: `calc(${marginPx}px + ${offset} * (100% - ${marginPx * 2}px))` }}
-            onMouseDown={(e) => handleDividerDrag(e, pageIndex, i, 'col')}
-          />
-        ))}
+            return (
+              <div key={`row-${r}`} className="w-full flex relative" style={{ height: `calc(${pageConfig.rowFractions[r] * 100}% - ${gapPx * (pageConfig.rows - 1) / pageConfig.rows}px)`, gap: `${gapPx}px` }}>
+                {Array.from({ length: pageConfig.cols }).map((_, c) => {
+                  const slotIndex = pageIndex * layout + (r * pageConfig.cols + c);
+                  return (
+                    <div key={`cell-${c}`} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center relative" style={{ width: `calc(${rColFractions[c] * 100}% - ${gapPx * (pageConfig.cols - 1) / pageConfig.cols}px)` }}>
+                      {slotIndex < (pageIndex + 1) * layout ? renderCellContent(slotIndex) : null}
+                    </div>
+                  );
+                })}
+                
+                {/* Vertical Dividers scoped to this row */}
+                {colOffsets.slice(0, -1).map((offset, i) => (
+                  <div 
+                    key={`vdiv-${r}-${i}`}
+                    className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+                    style={{ left: `calc(${offset * 100}%)` }}
+                    onMouseDown={(e) => handleDividerDrag(e, pageIndex, i, 'col', r)}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
 
         {/* Horizontal Dividers (Rows) */}
         {rowOffsets.slice(0, -1).map((offset, i) => (
@@ -581,7 +602,14 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
         <div className="w-full md:w-[280px] flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
           <div className="w-full flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-800 text-sm">Preview</h3>
-            <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setPageFractions([])}
+                className="text-[10px] font-semibold text-slate-500 hover:text-blue-600 transition"
+              >
+                RESET GRID
+              </button>
+              <label className="flex items-center gap-2 cursor-pointer">
               <span className="text-[10px] font-semibold text-slate-500 uppercase">Unified Layout</span>
               <div className="relative inline-block w-8 h-4 bg-slate-200 rounded-full">
                 <input 
@@ -593,11 +621,12 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                 <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
               </div>
             </label>
+            </div>
           </div>
           
           <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
             {layout > 1
-              ? "Drag the grid dividers to adjust cell sizes."
+              ? "Drag the grid dividers to adjust cell sizes. Columns magnetically snap."
               : "Image fits inside the bounding cell."}
           </p>
           

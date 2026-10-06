@@ -13,14 +13,14 @@ const PAPER_DIMENSIONS: Record<PaperSize, { width: number; height: number }> = {
 export interface GridLayoutConfig {
   cols: number;
   rows: number;
-  colFractions: number[];
+  colFractions: number[][]; // Now a 2D array: colFractions[rowIndex][colIndex]
   rowFractions: number[];
 }
 
 export function getGridLayoutConfig(
   layout: LayoutOption,
   orientation: Orientation,
-  customColFractions?: number[],
+  customColFractions?: number[][],
   customRowFractions?: number[]
 ): GridLayoutConfig {
   let cols = 1;
@@ -50,18 +50,19 @@ export function getGridLayoutConfig(
     else { cols = 5; rows = 2; }
   }
 
-  // Generate default fractions
-  const defaultColFractions = Array(cols).fill(1 / cols);
   const defaultRowFractions = Array(rows).fill(1 / rows);
-
-  // Use custom if length matches
-  const colFractions = (customColFractions && customColFractions.length === cols) 
-    ? customColFractions 
-    : defaultColFractions;
-    
   const rowFractions = (customRowFractions && customRowFractions.length === rows) 
     ? customRowFractions 
     : defaultRowFractions;
+
+  const defaultColFractions = Array(rows).fill(Array(cols).fill(1 / cols));
+  
+  let colFractions = defaultColFractions;
+  if (customColFractions && customColFractions.length === rows) {
+    colFractions = customColFractions.map(rowCols => 
+      (rowCols && rowCols.length === cols) ? rowCols : Array(cols).fill(1 / cols)
+    );
+  }
 
   return { cols, rows, colFractions, rowFractions };
 }
@@ -113,7 +114,7 @@ export async function generateBatchPdf(
   paperSize: PaperSize,
   layout: LayoutOption,
   orientation: Orientation,
-  pageFractions: { colFractions?: number[]; rowFractions?: number[] }[],
+  pageFractions: { colFractions?: number[][]; rowFractions?: number[] }[],
   margin: number = 0,
   gap: number = 0
 ): Promise<jsPDF> {
@@ -155,15 +156,6 @@ export async function generateBatchPdf(
     const netWidth = Math.max(0, usableWidth - totalGapW);
     const netHeight = Math.max(0, usableHeight - totalGapH);
 
-    // Compute column widths and X offsets for this page
-    const colWidths: number[] = colFractions.map((f) => netWidth * f);
-    const colXOffsets: number[] = [];
-    let currentX = margin;
-    for (let c = 0; c < cols; c++) {
-      colXOffsets.push(currentX);
-      currentX += colWidths[c] + gap;
-    }
-
     // Compute row heights and Y offsets for this page
     const rowHeights: number[] = rowFractions.map((f) => netHeight * f);
     const rowYOffsets: number[] = [];
@@ -173,13 +165,22 @@ export async function generateBatchPdf(
       currentY += rowHeights[r] + gap;
     }
 
+    // We now have row-specific column widths
     const getCellBounds = (index: number): { x: number; y: number; w: number; h: number } => {
       const colIndex = index % cols;
       const rowIndex = Math.floor(index / cols);
 
-      const x = colXOffsets[colIndex] ?? margin;
+      // Get widths for this specific row
+      const rowColFractions = colFractions[rowIndex] || Array(cols).fill(1/cols);
+      const rowColWidths = rowColFractions.map((f) => netWidth * f);
+      
+      let x = margin;
+      for (let c = 0; c < colIndex; c++) {
+        x += rowColWidths[c] + gap;
+      }
+      
       const y = rowYOffsets[rowIndex] ?? margin;
-      const w = colWidths[colIndex] ?? netWidth;
+      const w = rowColWidths[colIndex] ?? netWidth;
       const h = rowHeights[rowIndex] ?? netHeight;
 
       return { x, y, w, h };
