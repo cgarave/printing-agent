@@ -619,7 +619,6 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                     className="peer sr-only" 
                     checked={unifiedLayout} 
                     onChange={(e) => setUnifiedLayout(e.target.checked)} 
-                    disabled={isGridLocked}
                   />
                   <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
                 </div>
