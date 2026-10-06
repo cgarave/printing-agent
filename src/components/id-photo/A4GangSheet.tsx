@@ -9,7 +9,7 @@ import {
   Copy,
   ChevronDown,
 } from 'lucide-react';
-import { CustomerPhotoData, PACKAGE_PRESETS, PhotoFormatCategory, QuadrantId, QuadrantSlotState } from '@/lib/types';
+import { CustomerPhotoData, PACKAGE_PRESETS, PhotoFormatCategory, QuadrantId, QuadrantSlotState, PrintLayoutMode } from '@/lib/types';
 import QuadrantSlot from './QuadrantSlot';
 import PhotoEditorModal from './PhotoEditorModal';
 import { generateA4GangSheetPdf } from '@/lib/pdf-generator';
@@ -51,6 +51,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
 
 export default function A4GangSheet() {
   const [quadrants, setQuadrants] = useState<QuadrantSlotState[]>(INITIAL_QUADRANTS);
+  const [layoutMode, setLayoutMode] = useState<PrintLayoutMode>('full');
   const [activeEditingSlotId, setActiveEditingSlotId] = useState<QuadrantId | null>(null);
   const [activeEditingFormat, setActiveEditingFormat] = useState<PhotoFormatCategory>('2x2');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -269,7 +270,7 @@ export default function A4GangSheet() {
 
     setIsExportingPdf(true);
     try {
-      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true });
+      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode });
       doc.save(`A4_ID_Gang_Sheet_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
       console.error('Failed to export PDF:', err);
@@ -289,7 +290,7 @@ export default function A4GangSheet() {
 
     // Generate high-res PDF and open in new print window for exact 100% metric scale!
     try {
-      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true });
+      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode });
       const blob = doc.output('blob');
       const blobUrl = URL.createObjectURL(blob);
       const printWindow = window.open(blobUrl, '_blank');
@@ -323,6 +324,38 @@ export default function A4GangSheet() {
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Paper Layout Mode Toggle */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 mr-1">
+            <button
+              onClick={() => setLayoutMode('full')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${layoutMode === 'full' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              title="Standard 4 quadrants layout"
+            >
+              Full A4
+            </button>
+            <button
+              onClick={() => setLayoutMode('half-vertical')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${layoutMode === 'half-vertical' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              title="For A4 cut in half vertically (105x297mm)"
+            >
+              Half (Vert)
+            </button>
+            <button
+              onClick={() => setLayoutMode('half-horizontal')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${layoutMode === 'half-horizontal' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              title="For A4 cut in half horizontally (210x148.5mm)"
+            >
+              Half (Horiz)
+            </button>
+            <button
+              onClick={() => setLayoutMode('single')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${layoutMode === 'single' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              title="For a single quadrant cut (105x148.5mm)"
+            >
+              1 Quadrant
+            </button>
+          </div>
+
           {/* Select / Deselect Group */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
             <button
@@ -459,19 +492,41 @@ export default function A4GangSheet() {
 
       {/* Visual A4 Paper Representation: 2x2 Quadrant Grid */}
       <div className="flex justify-center">
-        <div className="w-full max-w-4xl bg-slate-200/50 p-3 sm:p-5 rounded-3xl border border-slate-200/80">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-            {quadrants.map((slot) => (
-              <QuadrantSlot
-                key={slot.id}
-                slot={slot}
-                onEdit={() => handleEditSlot(slot.id)}
-                onEditWithFormat={(format) => handleEditSlot(slot.id, format)}
-                onToggleEnabled={() => handleToggleEnabled(slot.id)}
-                onClear={() => handleClearSlot(slot.id)}
-                onChangeFormat={(format) => handleChangeSlotFormat(slot.id, format)}
-              />
-            ))}
+        <div className={`w-full bg-slate-200/50 p-3 sm:p-5 rounded-3xl border border-slate-200/80 ${layoutMode === 'full' || layoutMode === 'half-horizontal' ? 'max-w-4xl' : 'max-w-sm'}`}>
+          <div className={`grid gap-3 sm:gap-4 ${
+            layoutMode === 'full' || layoutMode === 'half-horizontal' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
+          }`}>
+            {quadrants
+              .filter((slot) => {
+                if (layoutMode === 'single') return slot.id === 'q1';
+                if (layoutMode === 'half-vertical' || layoutMode === 'half-horizontal') return slot.id === 'q1' || slot.id === 'q2';
+                return true;
+              })
+              .map((slot) => {
+                const displaySlot = { ...slot };
+                if (layoutMode === 'half-vertical') {
+                  displaySlot.label = slot.id === 'q1' ? 'Top Quadrant' : 'Bottom Quadrant';
+                  displaySlot.sublabel = 'Centered';
+                } else if (layoutMode === 'half-horizontal') {
+                  displaySlot.label = slot.id === 'q1' ? 'Left Quadrant' : 'Right Quadrant';
+                  displaySlot.sublabel = 'Top Edge';
+                } else if (layoutMode === 'single') {
+                  displaySlot.label = 'Single Quadrant';
+                  displaySlot.sublabel = 'Top-Center';
+                }
+
+                return (
+                  <QuadrantSlot
+                    key={slot.id}
+                    slot={displaySlot}
+                    onEdit={() => handleEditSlot(slot.id)}
+                    onEditWithFormat={(format) => handleEditSlot(slot.id, format)}
+                    onToggleEnabled={() => handleToggleEnabled(slot.id)}
+                    onClear={() => handleClearSlot(slot.id)}
+                    onChangeFormat={(format) => handleChangeSlotFormat(slot.id, format)}
+                  />
+                );
+              })}
           </div>
         </div>
       </div>

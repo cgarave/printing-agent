@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { CustomerPhotoData, QuadrantId, QuadrantSlotState } from './types';
+import { QuadrantId, QuadrantSlotState, PrintLayoutMode } from './types';
 import { calculateQuadrantLayout, QUADRANT_WIDTH_MM, QUADRANT_HEIGHT_MM } from './photo-packing';
 
 export interface QuadrantOffset {
@@ -20,7 +20,10 @@ export const QUADRANT_OFFSETS: Record<QuadrantId, QuadrantOffset> = {
  */
 export async function generateA4GangSheetPdf(
   quadrants: QuadrantSlotState[],
-  options?: { showQuadrantBorders?: boolean }
+  options?: { 
+    showQuadrantBorders?: boolean;
+    layoutMode?: PrintLayoutMode;
+  }
 ): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -28,10 +31,10 @@ export async function generateA4GangSheetPdf(
     format: 'a4', // 210 x 297 mm
   });
 
-  const { showQuadrantBorders = true } = options || {};
+  const { showQuadrantBorders = true, layoutMode = 'full' } = options || {};
 
   // Draw faint center quadrant dividing lines if enabled (for cutting A4 in 4 pieces)
-  if (showQuadrantBorders) {
+  if (showQuadrantBorders && layoutMode === 'full') {
     doc.setDrawColor(210, 210, 210);
     doc.setLineWidth(0.15); // faint hairline
     // Vertical center line
@@ -42,12 +45,35 @@ export async function generateA4GangSheetPdf(
     doc.setLineDashPattern([], 0); // reset solid
   }
 
+  const getDynamicOffset = (id: QuadrantId, mode: PrintLayoutMode): QuadrantOffset => {
+    if (mode === 'full') return QUADRANT_OFFSETS[id];
+    
+    // For custom cut paper, it centers horizontally in the tray.
+    const centerX = 52.5; // (210 - 105) / 2
+    
+    if (mode === 'half-vertical') {
+      if (id === 'q1') return { x: centerX, y: 0 };
+      if (id === 'q2') return { x: centerX, y: QUADRANT_HEIGHT_MM };
+    }
+    
+    if (mode === 'half-horizontal') {
+      if (id === 'q1') return { x: 0, y: 0 };
+      if (id === 'q2') return { x: QUADRANT_WIDTH_MM, y: 0 };
+    }
+    
+    if (mode === 'single') {
+      if (id === 'q1') return { x: centerX, y: 0 };
+    }
+    
+    return QUADRANT_OFFSETS[id];
+  };
+
   for (const slot of quadrants) {
     if (!slot.enabled || !slot.photoData) {
       continue;
     }
 
-    const offset = QUADRANT_OFFSETS[slot.id];
+    const offset = getDynamicOffset(slot.id, layoutMode);
     const { photoData } = slot;
     const photos = photoData.photos && photoData.photos.length > 0 ? photoData.photos : undefined;
 

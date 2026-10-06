@@ -177,6 +177,8 @@ export interface CustomerPhotoData {
   backgroundColor?: string;
 }
 
+export type PrintLayoutMode = 'full' | 'half-vertical' | 'half-horizontal' | 'single';
+
 export type QuadrantId = 'q1' | 'q2' | 'q3' | 'q4';
 
 export interface QuadrantSlotState {
