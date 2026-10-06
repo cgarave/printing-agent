@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, Layers, Trash2, Printer, Download, X, Copy, RotateCw } from 'lucide-react';
+import { UploadCloud, Layers, Trash2, Printer, Download, X, Copy, RotateCw, Crop } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBatchPdf, getGridLayoutConfig, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
+import BatchCropModal from './BatchCropModal';
 
 export interface QueueImage {
   id: string;
@@ -15,6 +16,7 @@ const ROTATION_STEPS = [0, 60, 90, 120, 180, 240, 270];
 
 export default function BatchLayoutView({ initialFile }: { initialFile?: File }) {
   const [images, setImages] = useState<QueueImage[]>([]);
+  const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
   const [globalRotation, setGlobalRotation] = useState<number>(0);
   const [paperSize, setPaperSize] = useState<PaperSize>('a4');
   const [layout, setLayout] = useState<LayoutOption>(2);
@@ -140,6 +142,27 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   const handleGlobalRotationChange = (deg: number) => {
     setGlobalRotation(deg);
     setImages((prev) => prev.map((img) => ({ ...img, rotation: deg })));
+  };
+
+  const paperDim = {
+    a4: { w: 210, h: 297 },
+    letter: { w: 215.9, h: 279.4 },
+    legal: { w: 215.9, h: 330.2 },
+  }[paperSize];
+  const cellWidthMm = (paperDim.w - margin * 2) / config.cols;
+  const cellHeightMm = (paperDim.h - margin * 2) / config.rows;
+  const currentCellRatio = cellWidthMm / cellHeightMm;
+
+  const handleSaveCrop = (croppedBase64: string) => {
+    if (croppingIndex === null) return;
+    setImages((prev) =>
+      prev.map((img, i) =>
+        i === croppingIndex
+          ? { ...img, src: croppedBase64 }
+          : img
+      )
+    );
+    setCroppingIndex(null);
   };
 
   const removeImage = (index: number) => {
@@ -399,6 +422,14 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition flex items-center justify-center gap-1.5">
                     <button 
                       type="button"
+                      onClick={() => setCroppingIndex(i)} 
+                      title="Crop image" 
+                      className="bg-white text-slate-700 hover:text-blue-600 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
+                    >
+                      <Crop className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      type="button"
                       onClick={() => rotateImage(i)} 
                       title={`Rotate image (currently ${img.rotation}°)`} 
                       className="bg-white text-slate-700 hover:text-blue-600 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
@@ -606,9 +637,19 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
               </div>
             )}
           </div>
-          
         </div>
       </div>
+
+      {/* Crop Modal */}
+      {croppingIndex !== null && images[croppingIndex] && (
+        <BatchCropModal
+          isOpen={croppingIndex !== null}
+          imageSrc={images[croppingIndex].src}
+          cellAspectRatio={currentCellRatio}
+          onClose={() => setCroppingIndex(null)}
+          onSave={handleSaveCrop}
+        />
+      )}
     </div>
   );
 }
