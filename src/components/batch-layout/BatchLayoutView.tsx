@@ -220,7 +220,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
     e.preventDefault();
     
     const targetPageIndex = unifiedLayout ? 0 : pageIndex;
-    const currentFrac = pageFractions[targetPageIndex] || pageFractions[0] || {};
+    const currentFrac = pageFractions[targetPageIndex] || (unifiedLayout ? pageFractions[0] : undefined) || {};
     const pageConfig = getGridLayoutConfig(layout, orientation, currentFrac.colFractions, currentFrac.rowFractions);
     
     const startPos = type === 'row' ? e.clientY : e.clientX;
@@ -324,7 +324,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   };
 
   const renderPreviewPage = (pageIndex: number) => {
-    const fractions = pageFractions[pageIndex] || pageFractions[0] || {};
+    const fractions = pageFractions[pageIndex] || (unifiedLayout ? pageFractions[0] : undefined) || {};
     const pageConfig = getGridLayoutConfig(layout, orientation, fractions.colFractions, fractions.rowFractions);
     
     const rowOffsets: number[] = [];
@@ -618,7 +618,23 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                     type="checkbox" 
                     className="peer sr-only" 
                     checked={unifiedLayout} 
-                    onChange={(e) => setUnifiedLayout(e.target.checked)} 
+                    onChange={(e) => {
+                      const isUnified = e.target.checked;
+                      setUnifiedLayout(isUnified);
+                      if (!isUnified) {
+                        setPageFractions(prev => {
+                          const p0 = prev[0] || {};
+                          return Array.from({ length: totalPages }).map(() => {
+                            // Deep clone page 0 so each page is independent
+                            const colFractions = p0.colFractions ? p0.colFractions.map(r => [...r]) : undefined;
+                            const rowFractions = p0.rowFractions ? [...p0.rowFractions] : undefined;
+                            return { colFractions, rowFractions };
+                          });
+                        });
+                      } else {
+                        setPageFractions(prev => prev.length > 0 ? [prev[0]] : []);
+                      }
+                    }} 
                   />
                   <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
                 </div>
