@@ -7,19 +7,26 @@ import {
   Settings,
   Printer,
   Layers,
+  Inbox,
 } from 'lucide-react';
 import A4GangSheet from '@/components/id-photo/A4GangSheet';
 import DocEncoderView from '@/components/doc-encoder/DocEncoderView';
 import SettingsModal from '@/components/settings/SettingsModal';
 import BatchLayoutView from '@/components/batch-layout/BatchLayoutView';
 import StandardPhotoView from '@/components/standard-photos/StandardPhotoView';
-
-type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout' | 'standard_photos';
+import QueueDrawer, { ActiveTab } from '@/components/queue/QueueDrawer';
+import { usePrintQueue } from '@/lib/contexts/PrintQueueContext';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('id_photos');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [shopName, setShopName] = useState('Print Shop Express');
+  
+  // File passed from the queue to the active tool
+  const [activeFile, setActiveFile] = useState<File | undefined>(undefined);
+  
+  const { unreadCount, clearUnread } = usePrintQueue();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -27,6 +34,20 @@ export default function Home() {
       if (stored) setShopName(stored);
     }
   }, [isSettingsOpen]);
+
+  const handleOpenQueue = () => {
+    setIsQueueOpen(true);
+    clearUnread();
+  };
+
+  const handleSendToFile = (file: File, mode: ActiveTab) => {
+    setActiveTab(mode);
+    // Force a re-trigger by creating a new File reference if needed, 
+    // or just pass it down and let the component handle it via useEffect.
+    // To ensure the child component detects a *new* file even if it's the same name,
+    // we can use a wrapper or just rely on object identity. The `file` object from DB is recreated.
+    setActiveFile(file);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100/60 font-sans">
@@ -102,8 +123,22 @@ export default function Home() {
             </button>
           </nav>
 
-          {/* Right Action: Settings */}
+          {/* Right Action: Queue & Settings */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenQueue}
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 border border-blue-700 rounded-lg hover:bg-blue-700 transition shadow-xs"
+              title="Print Queue"
+            >
+              <Inbox className="w-4 h-4 text-blue-100" />
+              <span className="hidden sm:inline">Queue</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs"
@@ -118,10 +153,10 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'id_photos' ? <A4GangSheet /> : 
-         activeTab === 'doc_encoder' ? <DocEncoderView /> :
-         activeTab === 'standard_photos' ? <StandardPhotoView /> :
-         <BatchLayoutView />}
+        {activeTab === 'id_photos' ? <A4GangSheet initialFile={activeFile} /> : 
+         activeTab === 'doc_encoder' ? <DocEncoderView initialFile={activeFile} /> :
+         activeTab === 'standard_photos' ? <StandardPhotoView initialFile={activeFile} /> :
+         <BatchLayoutView initialFile={activeFile} />}
       </main>
 
       {/* Counter Operator Footer */}
@@ -142,6 +177,9 @@ export default function Home() {
 
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      
+      {/* Queue Drawer */}
+      <QueueDrawer isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} onSendToFile={handleSendToFile} />
     </div>
   );
 }

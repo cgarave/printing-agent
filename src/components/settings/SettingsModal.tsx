@@ -101,6 +101,29 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               Your key is saved locally in this browser only. It is never logged or transmitted to third parties.
             </p>
           </div>
+
+          <div className="border-t border-slate-100 pt-5">
+            <label className="block text-xs font-bold text-slate-700 mb-2">Customer Upload Portal</label>
+            <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                readOnly 
+                value={typeof window !== 'undefined' ? `${window.location.origin}/customer` : ''} 
+                className="flex-1 px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg bg-slate-50 outline-none text-slate-500"
+              />
+              <a 
+                href="/customer" 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-3 py-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition"
+              >
+                Open Portal
+              </a>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2">
+              Open this link on a tablet or phone at the counter for customers to send files to the Print Queue.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}

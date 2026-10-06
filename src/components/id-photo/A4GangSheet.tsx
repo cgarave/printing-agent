@@ -49,7 +49,7 @@ const INITIAL_QUADRANTS: QuadrantSlotState[] = [
   },
 ];
 
-export default function A4GangSheet() {
+export default function A4GangSheet({ initialFile }: { initialFile?: File }) {
   const [quadrants, setQuadrants] = useState<QuadrantSlotState[]>(INITIAL_QUADRANTS);
   const [layoutMode, setLayoutMode] = useState<PrintLayoutMode>('full');
   const [activeEditingSlotId, setActiveEditingSlotId] = useState<QuadrantId | null>(null);
@@ -57,6 +57,40 @@ export default function A4GangSheet() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPresetsOpen, setIsPresetsOpen] = useState(false);
   const presetsRef = useRef<HTMLDivElement>(null);
+
+  // Handle incoming file from print queue
+  useEffect(() => {
+    if (initialFile) {
+      const hasUnsaved = quadrants.some(q => q.photoData !== null);
+      if (hasUnsaved) {
+        const confirmOverwrite = window.confirm("You have unsaved work in ID Photos. Do you want to overwrite it with the new file from the queue?");
+        if (!confirmOverwrite) return;
+      }
+      
+      const fileUrl = URL.createObjectURL(initialFile);
+      setQuadrants((prev) => prev.map((q) => {
+        if (q.id === 'q1') {
+          return {
+            ...q,
+            enabled: true,
+            photoData: {
+              originalImage: fileUrl,
+              processedImage: fileUrl,
+              frameMode: '2x2',
+              presetId: '2x2-combo',
+              customCounts: { '2x2': 6, '1x1': 0, passport: 0 },
+              customerName: '',
+              backgroundColor: '#FFFFFF',
+              photos: []
+            } as CustomerPhotoData
+          };
+        }
+        return { ...q, photoData: null }; // Clear others
+      }));
+      setActiveEditingFormat('2x2');
+      setActiveEditingSlotId('q1');
+    }
+  }, [initialFile]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

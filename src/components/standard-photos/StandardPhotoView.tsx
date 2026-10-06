@@ -13,7 +13,7 @@ interface PhotoItem {
   copies: number;
 }
 
-export default function StandardPhotoView() {
+export default function StandardPhotoView({ initialFile }: { initialFile?: File }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [targetSize, setTargetSize] = useState<StandardSizeKey>('4R');
   const [paperSize, setPaperSize] = useState<PaperSizeKey>('a4');
@@ -22,6 +22,24 @@ export default function StandardPhotoView() {
   const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle incoming file from print queue
+  React.useEffect(() => {
+    if (initialFile) {
+      const processFile = async () => {
+        const url = URL.createObjectURL(initialFile);
+        const cropped = await autoCropImage(url, targetSize);
+        setPhotos(prev => [...prev, {
+          id: Math.random().toString(36).substring(7),
+          originalImage: url,
+          croppedImage: cropped,
+          copies: 1
+        }]);
+      };
+      processFile();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
 
   // Helper to auto-crop an image (center cover) to base64
   const autoCropImage = (src: string, sizeKey: StandardSizeKey): Promise<string> => {

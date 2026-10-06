@@ -5,7 +5,7 @@ import { UploadCloud, Layers, Trash2, Printer, Download, X } from 'lucide-react'
 import JSZip from 'jszip';
 import { generateBatchPdf, getGridLayoutConfig, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
 
-export default function BatchLayoutView() {
+export default function BatchLayoutView({ initialFile }: { initialFile?: File }) {
   const [images, setImages] = useState<string[]>([]);
   const [paperSize, setPaperSize] = useState<PaperSize>('a4');
   const [layout, setLayout] = useState<LayoutOption>(2);
@@ -20,6 +20,14 @@ export default function BatchLayoutView() {
   
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file from print queue
+  useEffect(() => {
+    if (initialFile) {
+      processFiles([initialFile]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
 
   // Initialize fractions on layout change
   useEffect(() => {

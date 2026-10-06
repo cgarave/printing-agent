@@ -74,7 +74,7 @@ const EMPTY_FORM: DocumentFormData = {
   skills: '',
 };
 
-export default function DocEncoderView() {
+export default function DocEncoderView({ initialFile }: { initialFile?: File }) {
   const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplateType>('biodata');
   const [formData, setFormData] = useState<DocumentFormData>(EMPTY_FORM);
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
@@ -184,6 +184,7 @@ export default function DocEncoderView() {
         {/* Left Column: Form & Intake (5 cols) */}
         <div className="lg:col-span-5">
           <DocumentForm
+            initialFile={initialFile}
             formData={formData}
             onChange={setFormData}
             onClear={() => setFormData(EMPTY_FORM)}

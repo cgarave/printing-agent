@@ -16,6 +16,7 @@ import { DocumentFormData } from '@/lib/types';
 import { parseDocxFile } from '@/lib/docx-parser';
 
 interface DocumentFormProps {
+  initialFile?: File;
   formData: DocumentFormData;
   onChange: (updated: DocumentFormData) => void;
   onClear: () => void;
@@ -49,6 +50,7 @@ const SAMPLE_DATA: DocumentFormData = {
 };
 
 export default function DocumentForm({
+  initialFile,
   formData,
   onChange,
   onClear,
@@ -65,6 +67,12 @@ export default function DocumentForm({
 
   const docInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (initialFile) {
+      handleFileDrop(initialFile);
+    }
+  }, [initialFile]);
 
   const handleFieldChange = (field: keyof DocumentFormData, value: string) => {
     onChange({
