@@ -20,6 +20,7 @@ export default function StandardPhotoCropperModal({
   onSave,
 }: StandardPhotoCropperModalProps) {
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -31,6 +32,7 @@ export default function StandardPhotoCropperModal({
   useEffect(() => {
     if (isOpen && imageUrl) {
       setZoom(1);
+      setRotation(0);
       setPanX(0);
       setPanY(0);
       const img = new Image();
@@ -108,6 +110,7 @@ export default function StandardPhotoCropperModal({
     const scaleFactor = canvasW / frameW;
 
     ctx.translate(canvasW / 2 + panX * scaleFactor, canvasH / 2 + panY * scaleFactor);
+    ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(zoom, zoom);
 
     const drawW = displayW * scaleFactor;
@@ -161,7 +164,7 @@ export default function StandardPhotoCropperModal({
                     height: `${displayH}px`,
                     maxWidth: 'none',
                     maxHeight: 'none',
-                    transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                    transform: `translate(${panX}px, ${panY}px) rotate(${rotation}deg) scale(${zoom})`,
                     transformOrigin: 'center center'
                   }}
                 />
@@ -177,6 +180,19 @@ export default function StandardPhotoCropperModal({
             <button onClick={() => setZoom(z => Math.min(5, z + 0.1))} className="p-2 bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 shadow-xs">
               <ZoomIn className="w-4 h-4" />
             </button>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4 w-full max-w-[240px]">
+            <span className="text-xs font-semibold text-slate-500 w-16">Rotate</span>
+            <input 
+              type="range" 
+              min="0" 
+              max="90" 
+              value={rotation} 
+              onChange={(e) => setRotation(Number(e.target.value))}
+              className="flex-1 accent-blue-600 h-1.5 bg-slate-200 rounded-lg appearance-none"
+            />
+            <span className="text-xs font-mono w-8 text-right text-slate-500">{rotation}°</span>
           </div>
         </div>
 
