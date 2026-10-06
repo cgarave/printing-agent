@@ -1,12 +1,21 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { UploadCloud, Layers, Trash2, Printer, Download, X, Copy } from 'lucide-react';
+import { UploadCloud, Layers, Trash2, Printer, Download, X, Copy, RotateCw } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBatchPdf, getGridLayoutConfig, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
 
+export interface QueueImage {
+  id: string;
+  src: string;
+  rotation: number;
+}
+
+const ROTATION_STEPS = [0, 60, 90, 120, 180, 240, 270];
+
 export default function BatchLayoutView({ initialFile }: { initialFile?: File }) {
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<QueueImage[]>([]);
+  const [globalRotation, setGlobalRotation] = useState<number>(0);
   const [paperSize, setPaperSize] = useState<PaperSize>('a4');
   const [layout, setLayout] = useState<LayoutOption>(2);
   const [orientation, setOrientation] = useState<Orientation>('vertical');
@@ -48,7 +57,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   };
 
   const processFiles = async (files: File[]) => {
-    const newImages: string[] = [];
+    const newImages: QueueImage[] = [];
 
     for (const file of files) {
       if (file.name.toLowerCase().endsWith('.zip')) {
@@ -61,7 +70,11 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
               const base64 = await entry.async('base64');
               const ext = entry.name.split('.').pop()?.toLowerCase();
               const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-              newImages.push(`data:${mime};base64,${base64}`);
+              newImages.push({
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                src: `data:${mime};base64,${base64}`,
+                rotation: globalRotation,
+              });
             }
           }
         } catch (error) {
@@ -74,7 +87,11 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
           reader.onload = (e) => resolve(e.target?.result as string);
           reader.readAsDataURL(file);
         });
-        newImages.push(url);
+        newImages.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          src: url,
+          rotation: globalRotation,
+        });
       }
     }
 
@@ -97,9 +114,32 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   const duplicateImage = (index: number) => {
     setImages((prev) => {
       const copy = [...prev];
-      copy.splice(index + 1, 0, prev[index]);
+      const target = prev[index];
+      copy.splice(index + 1, 0, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        src: target.src,
+        rotation: target.rotation,
+      });
       return copy;
     });
+  };
+
+  const rotateImage = (index: number) => {
+    setImages((prev) =>
+      prev.map((img, i) => {
+        if (i !== index) return img;
+        const currentIdx = ROTATION_STEPS.indexOf(img.rotation);
+        const nextAngle = currentIdx >= 0 && currentIdx < ROTATION_STEPS.length - 1
+          ? ROTATION_STEPS[currentIdx + 1]
+          : ROTATION_STEPS[0];
+        return { ...img, rotation: nextAngle };
+      })
+    );
+  };
+
+  const handleGlobalRotationChange = (deg: number) => {
+    setGlobalRotation(deg);
+    setImages((prev) => prev.map((img) => ({ ...img, rotation: deg })));
   };
 
   const removeImage = (index: number) => {
@@ -274,6 +314,24 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
             </select>
           </div>
 
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Rotate</label>
+            <select
+              value={globalRotation}
+              onChange={(e) => handleGlobalRotationChange(Number(e.target.value))}
+              className="text-xs bg-transparent font-medium text-slate-700 outline-none"
+              title="Rotate all images to maximize paper space"
+            >
+              <option value={0}>0°</option>
+              <option value={60}>60°</option>
+              <option value={90}>90°</option>
+              <option value={120}>120°</option>
+              <option value={180}>180°</option>
+              <option value={240}>240°</option>
+              <option value={270}>270°</option>
+            </select>
+          </div>
+
           <div className="h-5 w-px bg-slate-200" />
 
           <button
@@ -329,18 +387,31 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
 
           {images.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-96 overflow-y-auto pr-1">
-              {images.map((src, i) => (
-                <div key={i} className="relative group aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100">
+              {images.map((img, i) => (
+                <div key={img.id || i} className="relative group aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="Upload" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition flex items-center justify-center gap-2">
+                  <img 
+                    src={img.src} 
+                    alt="Upload" 
+                    className="w-full h-full object-cover transition-transform duration-200" 
+                    style={{ transform: `rotate(${img.rotation}deg)` }}
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition flex items-center justify-center gap-1.5">
+                    <button 
+                      type="button"
+                      onClick={() => rotateImage(i)} 
+                      title={`Rotate image (currently ${img.rotation}°)`} 
+                      className="bg-white text-slate-700 hover:text-blue-600 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                    </button>
                     <button 
                       type="button"
                       onClick={() => duplicateImage(i)} 
                       title="Duplicate image" 
                       className="bg-white text-slate-700 hover:text-blue-600 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-3.5 h-3.5" />
                     </button>
                     <button 
                       type="button"
@@ -348,12 +419,17 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                       title="Remove image" 
                       className="bg-white text-red-600 hover:text-red-700 p-1.5 rounded-full hover:scale-110 transition shadow-xs"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 rounded font-mono">
                     {i + 1}
                   </div>
+                  {img.rotation > 0 && (
+                    <div className="absolute bottom-1 right-1 bg-blue-600/90 text-white text-[9px] px-1 py-0.5 rounded font-mono font-bold shadow-xs">
+                      {img.rotation}°
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

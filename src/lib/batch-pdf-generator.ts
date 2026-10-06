@@ -149,8 +149,50 @@ export function getGridLayoutConfig(
   };
 }
 
+export interface BatchImageItem {
+  src: string;
+  rotation?: number;
+}
+
+export type BatchImageInput = string | BatchImageItem;
+
+export async function rotateImageCanvas(src: string, degrees: number): Promise<string> {
+  const norm = ((degrees % 360) + 360) % 360;
+  if (norm === 0 || typeof document === 'undefined') return src;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const radians = (norm * Math.PI) / 180;
+      const sin = Math.abs(Math.sin(radians));
+      const cos = Math.abs(Math.cos(radians));
+
+      const newWidth = Math.max(1, Math.round(img.width * cos + img.height * sin));
+      const newHeight = Math.max(1, Math.round(img.width * sin + img.height * cos));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(src);
+        return;
+      }
+
+      ctx.translate(newWidth / 2, newHeight / 2);
+      ctx.rotate(radians);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+}
+
 export async function generateBatchPdf(
-  images: string[],
+  images: BatchImageInput[],
   paperSize: PaperSize,
   layout: LayoutOption,
   orientation: Orientation,
@@ -223,9 +265,15 @@ export async function generateBatchPdf(
     
     for (let slot = 0; slot < layout && imgIndex < images.length; slot++, imgIndex++) {
       const bounds = getCellBounds(slot);
-      const imgData = images[imgIndex];
+      const rawItem = images[imgIndex];
+      const imgSrc = typeof rawItem === 'string' ? rawItem : rawItem.src;
+      const imgRotation = typeof rawItem === 'string' ? 0 : (rawItem.rotation || 0);
+
+      const effectiveSrc = imgRotation !== 0
+        ? await rotateImageCanvas(imgSrc, imgRotation)
+        : imgSrc;
       
-      const img = await loadImage(imgData);
+      const img = await loadImage(effectiveSrc);
       
       const imgRatio = img.width / img.height;
       const boundsRatio = bounds.w / bounds.h;
