@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Clock, File as FileIcon, Image as ImageIcon, Trash2, ArrowRight, Download } from 'lucide-react';
 import { usePrintQueue, PrintRequest } from '@/lib/contexts/PrintQueueContext';
 
-export type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout' | 'standard_photos';
+export type ActiveTab = 'id_photos' | 'batch_layout' | 'standard_photos';
 
 interface QueueDrawerProps {
   isOpen: boolean;
@@ -107,10 +107,7 @@ export default function QueueDrawer({ isOpen, onClose, onSendToFile }: QueueDraw
                       </>
                     ) : (
                       <>
-                        <button onClick={() => handleSend(req, 'doc_encoder')} className="text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-700 py-1.5 rounded-lg hover:bg-emerald-100 transition">
-                          Doc Encoder <ArrowRight className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => handleSend(req, 'batch_layout')} className="text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-slate-100 text-slate-700 py-1.5 rounded-lg hover:bg-slate-200 transition">
+                        <button onClick={() => handleSend(req, 'batch_layout')} className="text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-slate-100 text-slate-700 py-1.5 rounded-lg hover:bg-slate-200 transition col-span-2">
                           Batch Layout <ArrowRight className="w-3 h-3" />
                         </button>
                       </>

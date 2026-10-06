@@ -12,7 +12,7 @@ export interface QueueImage {
   rotation: number;
 }
 
-const ROTATION_STEPS = [0, 60, 90, 120, 180, 240, 270];
+const ROTATION_STEPS = [0, 90, 180, 270];
 
 export default function BatchLayoutView({ initialFile }: { initialFile?: File }) {
   const [images, setImages] = useState<QueueImage[]>([]);
@@ -258,6 +258,24 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   };
   const previewRatio = aspectRatios[paperSize];
 
+
+  const renderCellContent = (index: number) => {
+    const img = images[index];
+    if (img) {
+      return (
+        <div className="w-full h-full p-1 overflow-hidden flex items-center justify-center pointer-events-none">
+          <img 
+            src={img.src} 
+            alt={`Preview ${index + 1}`} 
+            style={{ transform: `rotate(${img.rotation}deg)` }} 
+            className="max-w-full max-h-full object-contain" 
+          />
+        </div>
+      );
+    }
+    return <span className="text-slate-400 text-[10px] font-mono pointer-events-none">{index + 1}</span>;
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* Top Controls */}
@@ -346,11 +364,8 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
               title="Rotate all images to maximize paper space"
             >
               <option value={0}>0°</option>
-              <option value={60}>60°</option>
               <option value={90}>90°</option>
-              <option value={120}>120°</option>
               <option value={180}>180°</option>
-              <option value={240}>240°</option>
               <option value={270}>270°</option>
             </select>
           </div>
@@ -494,14 +509,14 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
             {/* Generate CSS Grid or Flexboxes for the preview based on layout and fractions */}
             {layout === 1 && (
               <div className="flex-1 border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                <span className="text-slate-400 text-xs font-mono">1</span>
+                {renderCellContent(0)}
               </div>
             )}
             
             {layout === 2 && orientation === 'vertical' && (
               <>
                 <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">1</span>
+                  {renderCellContent(0)}
                 </div>
                 <div 
                   className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
@@ -509,7 +524,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
                 />
                 <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">2</span>
+                  {renderCellContent(1)}
                 </div>
               </>
             )}
@@ -517,7 +532,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
             {layout === 2 && orientation === 'horizontal' && (
               <>
                 <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">1</span>
+                  {renderCellContent(0)}
                 </div>
                 <div 
                   className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
@@ -525,7 +540,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
                 <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">2</span>
+                  {renderCellContent(1)}
                 </div>
               </>
             )}
@@ -533,7 +548,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
             {layout === 3 && orientation === 'vertical' && (
               <>
                 <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">1</span>
+                  {renderCellContent(0)}
                 </div>
                 <div 
                   className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
@@ -541,7 +556,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
                 />
                 <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">2</span>
+                  {renderCellContent(1)}
                 </div>
                 <div 
                   className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
@@ -549,7 +564,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 1, 'horizontal')}
                 />
                 <div style={{ height: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">3</span>
+                  {renderCellContent(2)}
                 </div>
               </>
             )}
@@ -557,7 +572,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
             {layout === 3 && orientation === 'horizontal' && (
               <>
                 <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">1</span>
+                  {renderCellContent(0)}
                 </div>
                 <div 
                   className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
@@ -565,7 +580,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
                 <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">2</span>
+                  {renderCellContent(1)}
                 </div>
                 <div 
                   className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
@@ -573,7 +588,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                   onMouseDown={(e) => handleDividerDrag(e, 1, 'vertical')}
                 />
                 <div style={{ width: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  <span className="text-slate-400 text-xs font-mono">3</span>
+                  {renderCellContent(2)}
                 </div>
               </>
             )}
@@ -585,18 +600,18 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
               }}>
                 <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
                   <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    <span className="text-slate-400 text-xs font-mono">1</span>
+                    {renderCellContent(0)}
                   </div>
                   <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    <span className="text-slate-400 text-xs font-mono">2</span>
+                    {renderCellContent(1)}
                   </div>
                 </div>
                 <div style={{ height: `calc(${(1 - gridFractions[0]) * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
                   <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    <span className="text-slate-400 text-xs font-mono">3</span>
+                    {renderCellContent(2)}
                   </div>
                   <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    <span className="text-slate-400 text-xs font-mono">4</span>
+                    {renderCellContent(3)}
                   </div>
                 </div>
                 
@@ -631,7 +646,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                     key={slot}
                     className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center rounded-xs"
                   >
-                    <span className="text-slate-400 text-[10px] font-mono">{slot + 1}</span>
+                    {renderCellContent(slot)}
                   </div>
                 ))}
               </div>
