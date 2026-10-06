@@ -20,133 +20,50 @@ export interface GridLayoutConfig {
 export function getGridLayoutConfig(
   layout: LayoutOption,
   orientation: Orientation,
-  gridFractions: number[] = [0.5, 0.5]
+  customColFractions?: number[],
+  customRowFractions?: number[]
 ): GridLayoutConfig {
-  if (layout === 1) {
-    return {
-      cols: 1,
-      rows: 1,
-      colFractions: [1],
-      rowFractions: [1],
-    };
+  let cols = 1;
+  let rows = 1;
+  
+  if (layout === 1) { cols = 1; rows = 1; }
+  else if (layout === 2) {
+    if (orientation === 'vertical') { cols = 1; rows = 2; }
+    else { cols = 2; rows = 1; }
+  }
+  else if (layout === 3) {
+    if (orientation === 'vertical') { cols = 1; rows = 3; }
+    else { cols = 3; rows = 1; }
+  }
+  else if (layout === 4) { cols = 2; rows = 2; }
+  else if (layout === 5 || layout === 6) {
+    if (orientation === 'vertical') { cols = 2; rows = 3; }
+    else { cols = 3; rows = 2; }
+  }
+  else if (layout === 7 || layout === 8) {
+    if (orientation === 'vertical') { cols = 2; rows = 4; }
+    else { cols = 4; rows = 2; }
+  }
+  else if (layout === 9) { cols = 3; rows = 3; }
+  else if (layout === 10) {
+    if (orientation === 'vertical') { cols = 2; rows = 5; }
+    else { cols = 5; rows = 2; }
   }
 
-  if (layout === 2) {
-    if (orientation === 'vertical') {
-      return {
-        cols: 1,
-        rows: 2,
-        colFractions: [1],
-        rowFractions: gridFractions.length >= 2 ? [gridFractions[0], gridFractions[1]] : [0.5, 0.5],
-      };
-    } else {
-      return {
-        cols: 2,
-        rows: 1,
-        colFractions: gridFractions.length >= 2 ? [gridFractions[0], gridFractions[1]] : [0.5, 0.5],
-        rowFractions: [1],
-      };
-    }
-  }
+  // Generate default fractions
+  const defaultColFractions = Array(cols).fill(1 / cols);
+  const defaultRowFractions = Array(rows).fill(1 / rows);
 
-  if (layout === 3) {
-    if (orientation === 'vertical') {
-      return {
-        cols: 1,
-        rows: 3,
-        colFractions: [1],
-        rowFractions: gridFractions.length >= 3 ? gridFractions : [0.3333, 0.3333, 0.3334],
-      };
-    } else {
-      return {
-        cols: 3,
-        rows: 1,
-        colFractions: gridFractions.length >= 3 ? gridFractions : [0.3333, 0.3333, 0.3334],
-        rowFractions: [1],
-      };
-    }
-  }
+  // Use custom if length matches
+  const colFractions = (customColFractions && customColFractions.length === cols) 
+    ? customColFractions 
+    : defaultColFractions;
+    
+  const rowFractions = (customRowFractions && customRowFractions.length === rows) 
+    ? customRowFractions 
+    : defaultRowFractions;
 
-  if (layout === 4) {
-    const row0 = gridFractions[0] || 0.5;
-    const col0 = gridFractions[1] || 0.5;
-    return {
-      cols: 2,
-      rows: 2,
-      colFractions: [col0, 1 - col0],
-      rowFractions: [row0, 1 - row0],
-    };
-  }
-
-  if (layout === 5 || layout === 6) {
-    if (orientation === 'vertical') {
-      return {
-        cols: 2,
-        rows: 3,
-        colFractions: [0.5, 0.5],
-        rowFractions: [1 / 3, 1 / 3, 1 / 3],
-      };
-    } else {
-      return {
-        cols: 3,
-        rows: 2,
-        colFractions: [1 / 3, 1 / 3, 1 / 3],
-        rowFractions: [0.5, 0.5],
-      };
-    }
-  }
-
-  if (layout === 7 || layout === 8) {
-    if (orientation === 'vertical') {
-      return {
-        cols: 2,
-        rows: 4,
-        colFractions: [0.5, 0.5],
-        rowFractions: [0.25, 0.25, 0.25, 0.25],
-      };
-    } else {
-      return {
-        cols: 4,
-        rows: 2,
-        colFractions: [0.25, 0.25, 0.25, 0.25],
-        rowFractions: [0.5, 0.5],
-      };
-    }
-  }
-
-  if (layout === 9) {
-    return {
-      cols: 3,
-      rows: 3,
-      colFractions: [1 / 3, 1 / 3, 1 / 3],
-      rowFractions: [1 / 3, 1 / 3, 1 / 3],
-    };
-  }
-
-  if (layout === 10) {
-    if (orientation === 'vertical') {
-      return {
-        cols: 2,
-        rows: 5,
-        colFractions: [0.5, 0.5],
-        rowFractions: [0.2, 0.2, 0.2, 0.2, 0.2],
-      };
-    } else {
-      return {
-        cols: 5,
-        rows: 2,
-        colFractions: [0.2, 0.2, 0.2, 0.2, 0.2],
-        rowFractions: [0.5, 0.5],
-      };
-    }
-  }
-
-  return {
-    cols: 1,
-    rows: 1,
-    colFractions: [1],
-    rowFractions: [1],
-  };
+  return { cols, rows, colFractions, rowFractions };
 }
 
 export interface BatchImageItem {
@@ -196,7 +113,7 @@ export async function generateBatchPdf(
   paperSize: PaperSize,
   layout: LayoutOption,
   orientation: Orientation,
-  gridFractions: number[],
+  pageFractions: { colFractions?: number[]; rowFractions?: number[] }[],
   margin: number = 0,
   gap: number = 0
 ): Promise<jsPDF> {
@@ -208,45 +125,8 @@ export async function generateBatchPdf(
     format: [pageWidth, pageHeight],
   });
 
-  const config = getGridLayoutConfig(layout, orientation, gridFractions);
-  const { cols, rows, colFractions, rowFractions } = config;
-
   const usableWidth = pageWidth - margin * 2;
   const usableHeight = pageHeight - margin * 2;
-  const totalGapW = (cols - 1) * gap;
-  const totalGapH = (rows - 1) * gap;
-  const netWidth = Math.max(0, usableWidth - totalGapW);
-  const netHeight = Math.max(0, usableHeight - totalGapH);
-
-  // Compute column widths and X offsets
-  const colWidths: number[] = colFractions.map((f) => netWidth * f);
-  const colXOffsets: number[] = [];
-  let currentX = margin;
-  for (let c = 0; c < cols; c++) {
-    colXOffsets.push(currentX);
-    currentX += colWidths[c] + gap;
-  }
-
-  // Compute row heights and Y offsets
-  const rowHeights: number[] = rowFractions.map((f) => netHeight * f);
-  const rowYOffsets: number[] = [];
-  let currentY = margin;
-  for (let r = 0; r < rows; r++) {
-    rowYOffsets.push(currentY);
-    currentY += rowHeights[r] + gap;
-  }
-
-  const getCellBounds = (index: number): { x: number; y: number; w: number; h: number } => {
-    const colIndex = index % cols;
-    const rowIndex = Math.floor(index / cols);
-
-    const x = colXOffsets[colIndex] ?? margin;
-    const y = rowYOffsets[rowIndex] ?? margin;
-    const w = colWidths[colIndex] ?? netWidth;
-    const h = rowHeights[rowIndex] ?? netHeight;
-
-    return { x, y, w, h };
-  };
 
   const loadImage = (src: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
@@ -258,11 +138,53 @@ export async function generateBatchPdf(
   };
 
   let imgIndex = 0;
+  let pageIndex = 0;
+  
   while (imgIndex < images.length) {
-    if (imgIndex > 0) {
+    if (pageIndex > 0) {
       doc.addPage();
     }
     
+    // Get fractions for this page (fallback to the first page's if not defined)
+    const fractions = pageFractions[pageIndex] || pageFractions[0] || {};
+    const config = getGridLayoutConfig(layout, orientation, fractions.colFractions, fractions.rowFractions);
+    const { cols, rows, colFractions, rowFractions } = config;
+
+    const totalGapW = (cols - 1) * gap;
+    const totalGapH = (rows - 1) * gap;
+    const netWidth = Math.max(0, usableWidth - totalGapW);
+    const netHeight = Math.max(0, usableHeight - totalGapH);
+
+    // Compute column widths and X offsets for this page
+    const colWidths: number[] = colFractions.map((f) => netWidth * f);
+    const colXOffsets: number[] = [];
+    let currentX = margin;
+    for (let c = 0; c < cols; c++) {
+      colXOffsets.push(currentX);
+      currentX += colWidths[c] + gap;
+    }
+
+    // Compute row heights and Y offsets for this page
+    const rowHeights: number[] = rowFractions.map((f) => netHeight * f);
+    const rowYOffsets: number[] = [];
+    let currentY = margin;
+    for (let r = 0; r < rows; r++) {
+      rowYOffsets.push(currentY);
+      currentY += rowHeights[r] + gap;
+    }
+
+    const getCellBounds = (index: number): { x: number; y: number; w: number; h: number } => {
+      const colIndex = index % cols;
+      const rowIndex = Math.floor(index / cols);
+
+      const x = colXOffsets[colIndex] ?? margin;
+      const y = rowYOffsets[rowIndex] ?? margin;
+      const w = colWidths[colIndex] ?? netWidth;
+      const h = rowHeights[rowIndex] ?? netHeight;
+
+      return { x, y, w, h };
+    };
+
     for (let slot = 0; slot < layout && imgIndex < images.length; slot++, imgIndex++) {
       const bounds = getCellBounds(slot);
       const rawItem = images[imgIndex];
@@ -302,9 +224,9 @@ export async function generateBatchPdf(
       doc.rect(bounds.x, bounds.y, bounds.w, bounds.h, 'S');
       doc.setLineDashPattern([], 0); 
     }
+    
+    pageIndex++;
   }
 
   return doc;
 }
-
-

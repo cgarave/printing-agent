@@ -12,6 +12,11 @@ export interface QueueImage {
   rotation: number;
 }
 
+export interface PageFraction {
+  colFractions?: number[];
+  rowFractions?: number[];
+}
+
 const ROTATION_STEPS = [0, 90, 180, 270];
 
 export default function BatchLayoutView({ initialFile }: { initialFile?: File }) {
@@ -25,9 +30,8 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   const [margin, setMargin] = useState<number>(0);
   const [gap, setGap] = useState<number>(0);
   
-  // Grid fractions sum to 1.0. For layout=2, default [0.5, 0.5]
-  // For layout=4 (2x2), gridFractions[0] is row fraction, [1] is col fraction.
-  const [gridFractions, setGridFractions] = useState<number[]>([0.5, 0.5]);
+  const [pageFractions, setPageFractions] = useState<PageFraction[]>([]);
+  const [unifiedLayout, setUnifiedLayout] = useState<boolean>(true);
   
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,16 +44,13 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile]);
 
-  // Initialize fractions on layout change
+  // Reset fractions on layout change
   useEffect(() => {
-    if (layout === 1) setGridFractions([1.0]);
-    else if (layout === 2) setGridFractions([0.5, 0.5]);
-    else if (layout === 3) setGridFractions([0.333, 0.333, 0.334]);
-    else if (layout === 4) setGridFractions([0.5, 0.5]); // [row split, col split]
-    else setGridFractions([0.5, 0.5]);
-  }, [layout]);
+    setPageFractions([]);
+  }, [layout, orientation]);
 
-  const config = getGridLayoutConfig(layout, orientation, gridFractions);
+  const config = getGridLayoutConfig(layout, orientation, pageFractions[0]?.colFractions, pageFractions[0]?.rowFractions);
+  const totalPages = Math.max(1, Math.ceil(images.length / layout));
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -179,7 +180,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
     if (images.length === 0) return;
     setIsExporting(true);
     try {
-      const doc = await generateBatchPdf(images, paperSize, layout, orientation, gridFractions, margin, gap);
+      const doc = await generateBatchPdf(images, paperSize, layout, orientation, pageFractions, margin, gap);
       if (print) {
         const blob = doc.output('blob');
         const blobUrl = URL.createObjectURL(blob);
@@ -203,42 +204,63 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   // --- Resizing Logic for the preview grid ---
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleDividerDrag = useCallback((e: React.MouseEvent, dividerIndex: number, type: 'horizontal' | 'vertical') => {
+  const handleDividerDrag = useCallback((
+    e: React.MouseEvent,
+    pageIndex: number,
+    dividerIndex: number,
+    type: 'row' | 'col'
+  ) => {
     e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-
-    const startPos = type === 'horizontal' ? e.clientY : e.clientX;
-    const initialFractions = [...gridFractions];
-
+    
+    // Fallback to page 0 if unified layout
+    const targetPageIndex = unifiedLayout ? 0 : pageIndex;
+    
+    // Get current config for the page
+    const currentFrac = pageFractions[targetPageIndex] || pageFractions[0] || {};
+    const pageConfig = getGridLayoutConfig(layout, orientation, currentFrac.colFractions, currentFrac.rowFractions);
+    
+    const startPos = type === 'row' ? e.clientY : e.clientX;
+    const initialFractions = type === 'row' ? [...pageConfig.rowFractions] : [...pageConfig.colFractions];
+    
+    // We need the container to measure the drag delta accurately
+    // The container size depends on the paper preview dimensions.
+    const previewRatio = aspectRatios[paperSize];
+    const previewWidth = 200;
+    const previewHeight = 200 / previewRatio;
+    
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const delta = type === 'horizontal' ? (moveEvent.clientY - startPos) / rect.height : (moveEvent.clientX - startPos) / rect.width;
+      const deltaPx = type === 'row' ? (moveEvent.clientY - startPos) : (moveEvent.clientX - startPos);
+      const dimensionPx = type === 'row' ? previewHeight : previewWidth;
+      const deltaFrac = deltaPx / dimensionPx;
       
       const newFractions = [...initialFractions];
       
-      if (layout === 2 || layout === 3) {
-        // Adjust dividerIndex and dividerIndex+1
-        const maxDelta = initialFractions[dividerIndex + 1] - 0.05; // min 5%
-        const minDelta = -initialFractions[dividerIndex] + 0.05;
-        const clampedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
-        
-        newFractions[dividerIndex] = initialFractions[dividerIndex] + clampedDelta;
-        newFractions[dividerIndex + 1] = initialFractions[dividerIndex + 1] - clampedDelta;
-      } else if (layout === 4) {
-        // 4 per page. gridFractions[0] is row fraction, [1] is col fraction
-        if (type === 'horizontal') { // adjusting row (dividerIndex 0)
-          const maxDelta = (1 - initialFractions[0]) - 0.05;
-          const minDelta = -initialFractions[0] + 0.05;
-          newFractions[0] = initialFractions[0] + Math.max(minDelta, Math.min(maxDelta, delta));
-        } else { // adjusting col
-          const maxDelta = (1 - initialFractions[1]) - 0.05;
-          const minDelta = -initialFractions[1] + 0.05;
-          newFractions[1] = initialFractions[1] + Math.max(minDelta, Math.min(maxDelta, delta));
-        }
-      }
+      const maxDelta = initialFractions[dividerIndex + 1] - 0.05; // min 5%
+      const minDelta = -initialFractions[dividerIndex] + 0.05;
+      const clampedDelta = Math.max(minDelta, Math.min(maxDelta, deltaFrac));
       
-      setGridFractions(newFractions);
+      newFractions[dividerIndex] = initialFractions[dividerIndex] + clampedDelta;
+      newFractions[dividerIndex + 1] = initialFractions[dividerIndex + 1] - clampedDelta;
+      
+      setPageFractions((prev) => {
+        const next = [...prev];
+        // Ensure the array covers up to targetPageIndex
+        while (next.length <= targetPageIndex) {
+          next.push(prev[0] || {});
+        }
+        
+        const pageUpdate = { ...next[targetPageIndex] };
+        if (type === 'row') pageUpdate.rowFractions = newFractions;
+        else pageUpdate.colFractions = newFractions;
+        
+        if (unifiedLayout) {
+          // Update page 0, clear others to inherit
+          return [pageUpdate];
+        } else {
+          next[targetPageIndex] = pageUpdate;
+          return next;
+        }
+      });
     };
 
     const onMouseUp = () => {
@@ -248,7 +270,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [gridFractions, layout]);
+  }, [layout, orientation, pageFractions, unifiedLayout, paperSize]); // wait, I removed gridFractions from state. Let's fix deps.
 
   // Preview dimensions (scaled down)
   const aspectRatios: Record<PaperSize, number> = {
@@ -257,7 +279,6 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
     legal: 215.9 / 330.2
   };
   const previewRatio = aspectRatios[paperSize];
-
 
   const renderCellContent = (index: number) => {
     const img = images[index];
@@ -274,6 +295,80 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
       );
     }
     return <span className="text-slate-400 text-[10px] font-mono pointer-events-none">{index + 1}</span>;
+  };
+
+  const renderPreviewPage = (pageIndex: number) => {
+    const fractions = pageFractions[pageIndex] || pageFractions[0] || {};
+    const pageConfig = getGridLayoutConfig(layout, orientation, fractions.colFractions, fractions.rowFractions);
+    
+    // Calculate cumulative offsets for dividers
+    const colOffsets: number[] = [];
+    let accCol = 0;
+    for (let c = 0; c < pageConfig.cols; c++) {
+      accCol += pageConfig.colFractions[c];
+      colOffsets.push(accCol);
+    }
+    
+    const rowOffsets: number[] = [];
+    let accRow = 0;
+    for (let r = 0; r < pageConfig.rows; r++) {
+      accRow += pageConfig.rowFractions[r];
+      rowOffsets.push(accRow);
+    }
+
+    const marginPx = margin * (200 / 210);
+    const gapPx = gap * (200 / 210);
+
+    return (
+      <div 
+        key={pageIndex}
+        className="relative bg-white border border-slate-300 shadow-sm overflow-hidden select-none shrink-0"
+        style={{ 
+          width: '200px', 
+          height: `${200 / previewRatio}px`,
+          padding: `${marginPx}px`,
+        }}
+      >
+        <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-sm z-20 pointer-events-none shadow-sm backdrop-blur-sm font-medium tracking-wide">Page {pageIndex + 1}</div>
+        
+        {/* Draw the Grid cells */}
+        <div className="w-full h-full relative" style={{ display: 'flex', flexDirection: 'column', gap: `${gapPx}px` }}>
+          {Array.from({ length: pageConfig.rows }).map((_, r) => (
+            <div key={`row-${r}`} className="w-full flex relative" style={{ height: `calc(${pageConfig.rowFractions[r] * 100}% - ${gapPx * (pageConfig.rows - 1) / pageConfig.rows}px)`, gap: `${gapPx}px` }}>
+              {Array.from({ length: pageConfig.cols }).map((_, c) => {
+                const slotIndex = pageIndex * layout + (r * pageConfig.cols + c);
+                // Even for layouts with empty slots, we render the grid cell so structure is clear.
+                return (
+                  <div key={`cell-${c}`} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center relative" style={{ width: `calc(${pageConfig.colFractions[c] * 100}% - ${gapPx * (pageConfig.cols - 1) / pageConfig.cols}px)` }}>
+                    {slotIndex < (pageIndex + 1) * layout ? renderCellContent(slotIndex) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Vertical Dividers (Columns) */}
+        {colOffsets.slice(0, -1).map((offset, i) => (
+          <div 
+            key={`vdiv-${i}`}
+            className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+            style={{ left: `calc(${marginPx}px + ${offset} * (100% - ${marginPx * 2}px))` }}
+            onMouseDown={(e) => handleDividerDrag(e, pageIndex, i, 'col')}
+          />
+        ))}
+
+        {/* Horizontal Dividers (Rows) */}
+        {rowOffsets.slice(0, -1).map((offset, i) => (
+          <div 
+            key={`hdiv-${i}`}
+            className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
+            style={{ top: `calc(${marginPx}px + ${offset} * (100% - ${marginPx * 2}px))` }}
+            onMouseDown={(e) => handleDividerDrag(e, pageIndex, i, 'row')}
+          />
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -483,174 +578,31 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
         </div>
 
         {/* Right: Layout Preview */}
-        <div className="w-full md:w-80 flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
-          <h3 className="font-semibold text-slate-800 text-sm w-full mb-4">Layout Preview</h3>
+        <div className="w-full md:w-[280px] flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
+          <div className="w-full flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-slate-800 text-sm">Preview</h3>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase">Unified Layout</span>
+              <div className="relative inline-block w-8 h-4 bg-slate-200 rounded-full">
+                <input 
+                  type="checkbox" 
+                  className="peer sr-only" 
+                  checked={unifiedLayout} 
+                  onChange={(e) => setUnifiedLayout(e.target.checked)} 
+                />
+                <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
+              </div>
+            </label>
+          </div>
+          
           <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
-            {layout > 1 && layout <= 4
-              ? "Drag the dividers to adjust cell sizes."
-              : layout > 4
-              ? `${layout} images per page in a ${config.cols}×${config.rows} grid.`
+            {layout > 1
+              ? "Drag the grid dividers to adjust cell sizes."
               : "Image fits inside the bounding cell."}
           </p>
           
-          {/* Interactive Paper Preview */}
-          <div 
-            ref={containerRef}
-            className="relative bg-white border border-slate-300 shadow-sm overflow-hidden select-none"
-            style={{ 
-              width: '200px', 
-              height: `${200 / previewRatio}px`,
-              display: 'flex',
-              flexDirection: (layout === 4 || orientation === 'vertical') ? 'column' : 'row',
-              padding: `${margin * (200 / 210)}px`,
-              gap: (layout === 4 || layout >= 5) ? 0 : `${gap * (200 / 210)}px`
-            }}
-          >
-            {/* Generate CSS Grid or Flexboxes for the preview based on layout and fractions */}
-            {layout === 1 && (
-              <div className="flex-1 border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                {renderCellContent(0)}
-              </div>
-            )}
-            
-            {layout === 2 && orientation === 'vertical' && (
-              <>
-                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(0)}
-                </div>
-                <div 
-                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
-                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
-                />
-                <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(1)}
-                </div>
-              </>
-            )}
-
-            {layout === 2 && orientation === 'horizontal' && (
-              <>
-                <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(0)}
-                </div>
-                <div 
-                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
-                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
-                />
-                <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(1)}
-                </div>
-              </>
-            )}
-
-            {layout === 3 && orientation === 'vertical' && (
-              <>
-                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(0)}
-                </div>
-                <div 
-                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
-                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
-                />
-                <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(1)}
-                </div>
-                <div 
-                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
-                  style={{ top: `calc(${margin * (200 / 210)}px + ${(gridFractions[0] + gridFractions[1])} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 1, 'horizontal')}
-                />
-                <div style={{ height: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(2)}
-                </div>
-              </>
-            )}
-
-            {layout === 3 && orientation === 'horizontal' && (
-              <>
-                <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(0)}
-                </div>
-                <div 
-                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
-                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
-                />
-                <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(1)}
-                </div>
-                <div 
-                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
-                  style={{ left: `calc(${margin * (200 / 210)}px + ${(gridFractions[0] + gridFractions[1])} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 1, 'vertical')}
-                />
-                <div style={{ width: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                  {renderCellContent(2)}
-                </div>
-              </>
-            )}
-
-            {layout === 4 && (
-              <div className="absolute inset-0 flex flex-col" style={{
-                padding: `${margin * (200 / 210)}px`,
-                gap: `${gap * (200 / 210)}px`
-              }}>
-                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
-                  <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    {renderCellContent(0)}
-                  </div>
-                  <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    {renderCellContent(1)}
-                  </div>
-                </div>
-                <div style={{ height: `calc(${(1 - gridFractions[0]) * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
-                  <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    {renderCellContent(2)}
-                  </div>
-                  <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
-                    {renderCellContent(3)}
-                  </div>
-                </div>
-                
-                {/* Dividers for 4 layout */}
-                {/* Horizontal Divider (Row) */}
-                <div 
-                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
-                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
-                />
-                {/* Vertical Divider (Col) */}
-                <div 
-                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
-                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[1]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
-                  onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
-                />
-              </div>
-            )}
-
-            {layout >= 5 && (
-              <div 
-                className="w-full h-full"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${config.cols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${config.rows}, minmax(0, 1fr))`,
-                  gap: `${gap * (200 / 210)}px`,
-                }}
-              >
-                {Array.from({ length: layout }).map((_, slot) => (
-                  <div 
-                    key={slot}
-                    className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center rounded-xs"
-                  >
-                    {renderCellContent(slot)}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="w-full overflow-y-auto pr-2 max-h-[600px] flex flex-col items-center gap-6 pb-2" style={{ scrollbarWidth: 'thin' }}>
+            {Array.from({ length: totalPages }).map((_, i) => renderPreviewPage(i))}
           </div>
         </div>
       </div>
