@@ -11,6 +11,9 @@ export default function BatchLayoutView() {
   const [layout, setLayout] = useState<LayoutOption>(2);
   const [orientation, setOrientation] = useState<Orientation>('vertical');
   
+  const [margin, setMargin] = useState<number>(0);
+  const [gap, setGap] = useState<number>(0);
+  
   // Grid fractions sum to 1.0. For layout=2, default [0.5, 0.5]
   // For layout=4 (2x2), gridFractions[0] is row fraction, [1] is col fraction.
   const [gridFractions, setGridFractions] = useState<number[]>([0.5, 0.5]);
@@ -94,7 +97,7 @@ export default function BatchLayoutView() {
     if (images.length === 0) return;
     setIsExporting(true);
     try {
-      const doc = await generateBatchPdf(images, paperSize, layout, orientation, gridFractions);
+      const doc = await generateBatchPdf(images, paperSize, layout, orientation, gridFractions, margin, gap);
       if (print) {
         const blob = doc.output('blob');
         const blobUrl = URL.createObjectURL(blob);
@@ -217,6 +220,35 @@ export default function BatchLayoutView() {
             </select>
           )}
 
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Margin</label>
+            <select
+              value={margin}
+              onChange={(e) => setMargin(Number(e.target.value))}
+              className="text-xs bg-transparent font-medium text-slate-700 outline-none"
+            >
+              <option value={0}>0 mm</option>
+              <option value={5}>5 mm</option>
+              <option value={10}>10 mm</option>
+              <option value={15}>15 mm</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Gap</label>
+            <select
+              value={gap}
+              onChange={(e) => setGap(Number(e.target.value))}
+              className="text-xs bg-transparent font-medium text-slate-700 outline-none"
+              disabled={layout === 1}
+            >
+              <option value={0}>0 mm</option>
+              <option value={2}>2 mm</option>
+              <option value={5}>5 mm</option>
+              <option value={10}>10 mm</option>
+            </select>
+          </div>
+
           <div className="h-5 w-px bg-slate-200" />
 
           <button
@@ -300,12 +332,14 @@ export default function BatchLayoutView() {
           {/* Interactive Paper Preview */}
           <div 
             ref={containerRef}
-            className="relative bg-slate-50 border border-slate-300 shadow-sm overflow-hidden select-none"
+            className="relative bg-white border border-slate-300 shadow-sm overflow-hidden select-none"
             style={{ 
               width: '200px', 
               height: `${200 / previewRatio}px`,
               display: 'flex',
-              flexDirection: (layout === 4 || orientation === 'vertical') ? 'column' : 'row'
+              flexDirection: (layout === 4 || orientation === 'vertical') ? 'column' : 'row',
+              padding: `${margin * (200 / 210)}px`,
+              gap: layout === 4 ? 0 : `${gap * (200 / 210)}px`
             }}
           >
             {/* Generate CSS Grid or Flexboxes for the preview based on layout and fractions */}
@@ -317,15 +351,15 @@ export default function BatchLayoutView() {
             
             {layout === 2 && orientation === 'vertical' && (
               <>
-                <div style={{ height: `${gridFractions[0] * 100}%` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">1</span>
                 </div>
                 <div 
-                  className="h-1.5 bg-blue-500 cursor-row-resize absolute left-0 right-0 z-10 hover:h-2 hover:bg-blue-600 transition-all -translate-y-1/2" 
-                  style={{ top: `${gridFractions[0] * 100}%` }}
+                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
+                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
                 />
-                <div style={{ height: `${gridFractions[1] * 100}%` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">2</span>
                 </div>
               </>
@@ -333,15 +367,15 @@ export default function BatchLayoutView() {
 
             {layout === 2 && orientation === 'horizontal' && (
               <>
-                <div style={{ width: `${gridFractions[0] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">1</span>
                 </div>
                 <div 
-                  className="w-1.5 bg-blue-500 cursor-col-resize absolute top-0 bottom-0 z-10 hover:w-2 hover:bg-blue-600 transition-all -translate-x-1/2" 
-                  style={{ left: `${gridFractions[0] * 100}%` }}
+                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
-                <div style={{ width: `${gridFractions[1] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">2</span>
                 </div>
               </>
@@ -349,23 +383,23 @@ export default function BatchLayoutView() {
 
             {layout === 3 && orientation === 'vertical' && (
               <>
-                <div style={{ height: `${gridFractions[0] * 100}%` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">1</span>
                 </div>
                 <div 
-                  className="h-1.5 bg-blue-500 cursor-row-resize absolute left-0 right-0 z-10 hover:h-2 hover:bg-blue-600 transition-all -translate-y-1/2" 
-                  style={{ top: `${gridFractions[0] * 100}%` }}
+                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
+                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
                 />
-                <div style={{ height: `${gridFractions[1] * 100}%` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">2</span>
                 </div>
                 <div 
-                  className="h-1.5 bg-blue-500 cursor-row-resize absolute left-0 right-0 z-10 hover:h-2 hover:bg-blue-600 transition-all -translate-y-1/2" 
-                  style={{ top: `${(gridFractions[0] + gridFractions[1]) * 100}%` }}
+                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
+                  style={{ top: `calc(${margin * (200 / 210)}px + ${(gridFractions[0] + gridFractions[1])} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 1, 'horizontal')}
                 />
-                <div style={{ height: `${gridFractions[2] * 100}%` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">3</span>
                 </div>
               </>
@@ -373,43 +407,46 @@ export default function BatchLayoutView() {
 
             {layout === 3 && orientation === 'horizontal' && (
               <>
-                <div style={{ width: `${gridFractions[0] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ width: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">1</span>
                 </div>
                 <div 
-                  className="w-1.5 bg-blue-500 cursor-col-resize absolute top-0 bottom-0 z-10 hover:w-2 hover:bg-blue-600 transition-all -translate-x-1/2" 
-                  style={{ left: `${gridFractions[0] * 100}%` }}
+                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
-                <div style={{ width: `${gridFractions[1] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">2</span>
                 </div>
                 <div 
-                  className="w-1.5 bg-blue-500 cursor-col-resize absolute top-0 bottom-0 z-10 hover:w-2 hover:bg-blue-600 transition-all -translate-x-1/2" 
-                  style={{ left: `${(gridFractions[0] + gridFractions[1]) * 100}%` }}
+                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+                  style={{ left: `calc(${margin * (200 / 210)}px + ${(gridFractions[0] + gridFractions[1])} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 1, 'vertical')}
                 />
-                <div style={{ width: `${gridFractions[2] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ width: `calc(${gridFractions[2] * 100}% - ${gap * (200 / 210) * 0.666}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                   <span className="text-slate-400 text-xs font-mono">3</span>
                 </div>
               </>
             )}
 
             {layout === 4 && (
-              <div className="absolute inset-0 flex flex-col">
-                <div style={{ height: `${gridFractions[0] * 100}%` }} className="w-full flex">
-                  <div style={{ width: `${gridFractions[1] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+              <div className="absolute inset-0 flex flex-col" style={{
+                padding: `${margin * (200 / 210)}px`,
+                gap: `${gap * (200 / 210)}px`
+              }}>
+                <div style={{ height: `calc(${gridFractions[0] * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
+                  <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                     <span className="text-slate-400 text-xs font-mono">1</span>
                   </div>
-                  <div style={{ width: `${(1 - gridFractions[1]) * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                  <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                     <span className="text-slate-400 text-xs font-mono">2</span>
                   </div>
                 </div>
-                <div style={{ height: `${(1 - gridFractions[0]) * 100}%` }} className="w-full flex">
-                  <div style={{ width: `${gridFractions[1] * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                <div style={{ height: `calc(${(1 - gridFractions[0]) * 100}% - ${gap * (200 / 210) / 2}px)`, gap: `${gap * (200 / 210)}px` }} className="w-full flex">
+                  <div style={{ width: `calc(${gridFractions[1] * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                     <span className="text-slate-400 text-xs font-mono">3</span>
                   </div>
-                  <div style={{ width: `${(1 - gridFractions[1]) * 100}%` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
+                  <div style={{ width: `calc(${(1 - gridFractions[1]) * 100}% - ${gap * (200 / 210) / 2}px)` }} className="h-full border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center">
                     <span className="text-slate-400 text-xs font-mono">4</span>
                   </div>
                 </div>
@@ -417,14 +454,14 @@ export default function BatchLayoutView() {
                 {/* Dividers for 4 layout */}
                 {/* Horizontal Divider (Row) */}
                 <div 
-                  className="h-1.5 bg-blue-500 cursor-row-resize absolute left-0 right-0 z-10 hover:h-2 hover:bg-blue-600 transition-all -translate-y-1/2" 
-                  style={{ top: `${gridFractions[0] * 100}%` }}
+                  className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
+                  style={{ top: `calc(${margin * (200 / 210)}px + ${gridFractions[0]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'horizontal')}
                 />
                 {/* Vertical Divider (Col) */}
                 <div 
-                  className="w-1.5 bg-blue-500 cursor-col-resize absolute top-0 bottom-0 z-10 hover:w-2 hover:bg-blue-600 transition-all -translate-x-1/2" 
-                  style={{ left: `${gridFractions[1] * 100}%` }}
+                  className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
+                  style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[1]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
               </div>
