@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Clock, File as FileIcon, Image as ImageIcon, Trash2, ArrowRight } from 'lucide-react';
+import { X, Clock, File as FileIcon, Image as ImageIcon, Trash2, ArrowRight, Download } from 'lucide-react';
 import { usePrintQueue, PrintRequest } from '@/lib/contexts/PrintQueueContext';
 
 export type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout' | 'standard_photos';
@@ -71,13 +71,25 @@ export default function QueueDrawer({ isOpen, onClose, onSendToFile }: QueueDraw
                         </p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => removeFromQueue(req.id)}
-                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition"
-                      title="Remove from queue"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {req.fileUrl && (
+                        <a 
+                          href={req.fileUrl}
+                          download={req.fileName}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition"
+                          title="Download file"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      )}
+                      <button 
+                        onClick={() => removeFromQueue(req.id)}
+                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition"
+                        title="Remove from queue"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
