@@ -12,8 +12,9 @@ import A4GangSheet from '@/components/id-photo/A4GangSheet';
 import DocEncoderView from '@/components/doc-encoder/DocEncoderView';
 import SettingsModal from '@/components/settings/SettingsModal';
 import BatchLayoutView from '@/components/batch-layout/BatchLayoutView';
+import StandardPhotoView from '@/components/standard-photos/StandardPhotoView';
 
-type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout';
+type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout' | 'standard_photos';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('id_photos');
@@ -87,6 +88,18 @@ export default function Home() {
               <Layers className="w-4 h-4" />
               Batch Layout
             </button>
+            
+            <button
+              onClick={() => setActiveTab('standard_photos')}
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'standard_photos'
+                  ? 'bg-white text-blue-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              Standard Photos
+            </button>
           </nav>
 
           {/* Right Action: Settings */}
@@ -107,6 +120,7 @@ export default function Home() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeTab === 'id_photos' ? <A4GangSheet /> : 
          activeTab === 'doc_encoder' ? <DocEncoderView /> :
+         activeTab === 'standard_photos' ? <StandardPhotoView /> :
          <BatchLayoutView />}
       </main>
 
