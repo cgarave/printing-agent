@@ -16,8 +16,10 @@ export default function QueueDrawer({ isOpen, onClose, onSendToFile }: QueueDraw
   if (!isOpen) return null;
 
   const handleSend = (req: PrintRequest, mode: ActiveTab) => {
-    onSendToFile(req.file, mode);
-    onClose();
+    if (req.file) {
+      onSendToFile(req.file, mode);
+      onClose();
+    }
   };
 
   return (
@@ -63,9 +65,9 @@ export default function QueueDrawer({ isOpen, onClose, onSendToFile }: QueueDraw
                       </div>
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 truncate">{req.customerName}</p>
-                        <p className="text-xs text-slate-500 truncate">{req.file.name}</p>
+                        <p className="text-xs text-slate-500 truncate">{req.fileName}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">
-                          {req.timestamp.toLocaleTimeString()} • {(req.file.size / 1024 / 1024).toFixed(2)} MB
+                          {req.timestamp.toLocaleTimeString()} • {req.file ? (req.file.size / 1024 / 1024).toFixed(2) : '0.00'} MB
                         </p>
                       </div>
                     </div>

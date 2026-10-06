@@ -6,16 +6,20 @@ import { getAllRequests, addRequest as dbAddRequest, updateRequestStatus as dbUp
 export type PrintRequest = {
   id: string;
   customerName: string;
-  file: File;
-  fileUrl: string; // Used for previewing
+  fileBuffer: ArrayBuffer; // Stored as ArrayBuffer for reliable IDB serialization
+  fileName: string;
   fileType: string;
   status: 'pending' | 'processing' | 'completed';
   timestamp: Date;
+  
+  // These are constructed on load and not stored in DB directly
+  file?: File;
+  fileUrl?: string; 
 };
 
 interface PrintQueueContextType {
   queue: PrintRequest[];
-  addToQueue: (request: Omit<PrintRequest, 'id' | 'status' | 'timestamp'>) => Promise<void>;
+  addToQueue: (request: Omit<PrintRequest, 'id' | 'status' | 'timestamp' | 'file' | 'fileUrl'>) => Promise<void>;
   updateStatus: (id: string, status: PrintRequest['status']) => Promise<void>;
   removeFromQueue: (id: string) => Promise<void>;
   unreadCount: number;
@@ -31,7 +35,31 @@ export function PrintQueueProvider({ children }: { children: ReactNode }) {
   const loadQueue = useCallback(async () => {
     try {
       const data = await getAllRequests();
-      setQueue(data);
+      
+      // We must regenerate fileUrl for this specific tab/window
+      // because Blob URLs from other tabs are invalid.
+      setQueue((prevQueue) => {
+        // Revoke old URLs
+        prevQueue.forEach(item => {
+          if (item.fileUrl) URL.revokeObjectURL(item.fileUrl);
+        });
+
+        return data.map(item => {
+          let file: File | undefined;
+          let fileUrl = '';
+          
+          if (item.fileBuffer) {
+            file = new File([item.fileBuffer], item.fileName, { type: item.fileType });
+            fileUrl = URL.createObjectURL(file);
+          }
+          
+          return {
+            ...item,
+            file,
+            fileUrl
+          };
+        });
+      });
     } catch (error) {
       console.error('Failed to load queue from IndexedDB', error);
     }
@@ -58,7 +86,7 @@ export function PrintQueueProvider({ children }: { children: ReactNode }) {
     return () => channel.close();
   }, [loadQueue]);
 
-  const addToQueue = async (requestData: Omit<PrintRequest, 'id' | 'status' | 'timestamp'>) => {
+  const addToQueue = async (requestData: Omit<PrintRequest, 'id' | 'status' | 'timestamp' | 'file' | 'fileUrl'>) => {
     const newRequest: PrintRequest = {
       ...requestData,
       id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

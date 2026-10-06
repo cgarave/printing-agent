@@ -26,12 +26,11 @@ export default function CustomerUploadPage() {
     setIsUploading(true);
 
     try {
-      // Create a temporary object URL for previews (will be persisted in queue)
-      const fileUrl = URL.createObjectURL(file);
+      const buffer = await file.arrayBuffer();
       await addToQueue({
         customerName: customerName.trim() || 'Guest',
-        file,
-        fileUrl,
+        fileBuffer: buffer,
+        fileName: file.name,
         fileType: file.type || 'application/octet-stream',
       });
       setIsSuccess(true);
