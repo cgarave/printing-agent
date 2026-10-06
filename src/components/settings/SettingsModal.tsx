@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Key, Check, Info, ShieldCheck, Sparkles, Store } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,14 +12,23 @@ interface SettingsModalProps {
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
   const [shopName, setShopName] = useState('Print Shop Express');
+  const [shopId, setShopId] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedKey = localStorage.getItem('gemini_api_key') || '';
       const storedShop = localStorage.getItem('shop_name') || 'Print Shop Express';
+      let storedShopId = localStorage.getItem('shop_id');
+      
+      if (!storedShopId) {
+        storedShopId = `shop-${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('shop_id', storedShopId);
+      }
+      
       setApiKey(storedKey);
       setShopName(storedShop);
+      setShopId(storedShopId);
     }
   }, [isOpen]);
 
@@ -102,27 +112,38 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </p>
           </div>
 
-          <div className="border-t border-slate-100 pt-5">
-            <label className="block text-xs font-bold text-slate-700 mb-2">Customer Upload Portal</label>
-            <div className="flex items-center gap-2">
+          <div className="border-t border-slate-100 pt-5 flex flex-col items-center text-center">
+            <label className="block text-sm font-bold text-slate-700 mb-1">Customer Upload Portal</label>
+            <p className="text-[11px] text-slate-500 mb-4 max-w-[280px]">
+              Customers can scan this QR code with their phone to send files directly to your PC (No app required).
+            </p>
+            
+            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs mb-4 inline-block">
+              {shopId && (
+                <QRCodeSVG 
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/customer?shopId=${shopId}` : ''} 
+                  size={140}
+                  level="H"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full">
               <input 
                 type="text" 
                 readOnly 
-                value={typeof window !== 'undefined' ? `${window.location.origin}/customer` : ''} 
-                className="flex-1 px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg bg-slate-50 outline-none text-slate-500"
+                value={typeof window !== 'undefined' && shopId ? `${window.location.origin}/customer?shopId=${shopId}` : ''} 
+                className="flex-1 px-3 py-2 text-[10px] font-mono border border-slate-300 rounded-lg bg-slate-50 outline-none text-slate-500"
               />
               <a 
-                href="/customer" 
+                href={typeof window !== 'undefined' && shopId ? `/customer?shopId=${shopId}` : '/customer'} 
                 target="_blank" 
                 rel="noreferrer"
-                className="px-3 py-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition"
+                className="px-3 py-2 text-[11px] font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition shrink-0"
               >
-                Open Portal
+                Open / Test
               </a>
             </div>
-            <p className="text-[10px] text-slate-500 mt-2">
-              Open this link on a tablet or phone at the counter for customers to send files to the Print Queue.
-            </p>
           </div>
         </div>
 

@@ -27,21 +27,56 @@ export default function CustomerUploadPage() {
 
     try {
       const buffer = await file.arrayBuffer();
-      await addToQueue({
+      const payload = {
         customerName: customerName.trim() || 'Guest',
         fileBuffer: buffer,
         fileName: file.name,
         fileType: file.type || 'application/octet-stream',
-      });
+      };
+
+      const params = new URLSearchParams(window.location.search);
+      const shopId = params.get('shopId');
+
+      if (shopId) {
+        // Use WebRTC to send to Admin PC directly
+        const { default: Peer } = await import('peerjs');
+        const peer = new Peer();
+
+        await new Promise((resolve, reject) => {
+          peer.on('open', () => {
+            const conn = peer.connect(shopId);
+            conn.on('open', () => {
+              conn.send({ type: 'NEW_REQUEST', payload });
+            });
+            conn.on('data', (data: any) => {
+              if (data && data.type === 'SUCCESS') {
+                peer.destroy();
+                resolve(true);
+              } else if (data && data.type === 'ERROR') {
+                reject(new Error(data.error));
+              }
+            });
+            conn.on('error', (err) => reject(err));
+            
+            // Timeout if host doesn't respond
+            setTimeout(() => reject(new Error('Connection timed out. Admin PC might be offline.')), 30000);
+          });
+          peer.on('error', (err) => reject(err));
+        });
+      } else {
+        // Fallback to local IndexedDB (Testing on same device)
+        await addToQueue(payload);
+      }
+
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
         setFile(null);
         setCustomerName('');
       }, 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to submit file', error);
-      alert('Upload failed. Please try again.');
+      alert(error.message || 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }

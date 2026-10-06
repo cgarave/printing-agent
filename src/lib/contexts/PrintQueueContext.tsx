@@ -83,7 +83,65 @@ export function PrintQueueProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    return () => channel.close();
+    // --- WebRTC Host Setup (Only on Admin PC) ---
+    let peer: any = null;
+    if (typeof window !== 'undefined' && window.location.pathname !== '/customer') {
+      import('peerjs').then(({ default: Peer }) => {
+        let shopId = localStorage.getItem('shop_id');
+        if (!shopId) {
+          shopId = `shop-${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem('shop_id', shopId);
+        }
+
+        peer = new Peer(shopId);
+
+        peer.on('open', (id: string) => {
+          console.log('PeerJS Host ready with ID:', id);
+        });
+
+        peer.on('connection', (conn: any) => {
+          conn.on('data', async (data: any) => {
+            if (data && data.type === 'NEW_REQUEST') {
+              // Add to IndexedDB
+              const newRequest = {
+                ...data.payload,
+                id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                status: 'pending',
+                timestamp: new Date(),
+              };
+              
+              try {
+                // @ts-ignore - dbAddRequest expects PrintRequest, we pass required fields
+                await dbAddRequest(newRequest);
+                await loadQueue();
+                setUnreadCount((prev) => prev + 1);
+                
+                const audio = new Audio('/notification.mp3');
+                audio.play().catch(e => console.log('Audio play blocked:', e));
+                
+                // Also notify other tabs
+                channel.postMessage({ type: 'NEW_REQUEST' });
+                
+                // Reply success
+                conn.send({ type: 'SUCCESS' });
+              } catch (err) {
+                console.error("Failed to save WebRTC request to DB", err);
+                conn.send({ type: 'ERROR', error: 'Failed to save' });
+              }
+            }
+          });
+        });
+
+        peer.on('error', (err: any) => {
+          console.error('PeerJS Host Error:', err);
+        });
+      });
+    }
+
+    return () => {
+      channel.close();
+      if (peer) peer.destroy();
+    };
   }, [loadQueue]);
 
   const addToQueue = async (requestData: Omit<PrintRequest, 'id' | 'status' | 'timestamp' | 'file' | 'fileUrl'>) => {
