@@ -32,6 +32,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
   
   const [pageFractions, setPageFractions] = useState<PageFraction[]>([]);
   const [unifiedLayout, setUnifiedLayout] = useState<boolean>(true);
+  const [isGridLocked, setIsGridLocked] = useState<boolean>(false);
   
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -366,7 +367,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                 })}
                 
                 {/* Vertical Dividers scoped to this row */}
-                {colOffsets.slice(0, -1).map((offset, i) => (
+                {!isGridLocked && colOffsets.slice(0, -1).map((offset, i) => (
                   <div 
                     key={`vdiv-${r}-${i}`}
                     className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
@@ -380,7 +381,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
         </div>
 
         {/* Horizontal Dividers (Rows) */}
-        {rowOffsets.slice(0, -1).map((offset, i) => (
+        {!isGridLocked && rowOffsets.slice(0, -1).map((offset, i) => (
           <div 
             key={`hdiv-${i}`}
             className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
@@ -626,7 +627,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
           
           <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
             {layout > 1
-              ? "Drag the grid dividers to adjust cell sizes. Columns magnetically snap."
+              ? (isGridLocked ? "Grid is locked to perfect even fractions." : "Drag the grid dividers to adjust cell sizes. Columns magnetically snap.")
               : "Image fits inside the bounding cell."}
           </p>
           
