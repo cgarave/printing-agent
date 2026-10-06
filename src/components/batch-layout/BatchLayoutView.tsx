@@ -601,27 +601,47 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
 
         {/* Right: Layout Preview */}
         <div className="w-full md:w-[280px] flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
-          <div className="w-full flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800 text-sm">Preview</h3>
-            <div className="flex items-center gap-3">
+          <div className="w-full flex flex-col gap-3 mb-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800 text-sm">Preview</h3>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase">Unified Layout</span>
+                <div className="relative inline-block w-8 h-4 bg-slate-200 rounded-full">
+                  <input 
+                    type="checkbox" 
+                    className="peer sr-only" 
+                    checked={unifiedLayout} 
+                    onChange={(e) => setUnifiedLayout(e.target.checked)} 
+                    disabled={isGridLocked}
+                  />
+                  <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
+                </div>
+              </label>
+            </div>
+            
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
               <button 
                 onClick={() => setPageFractions([])}
                 className="text-[10px] font-semibold text-slate-500 hover:text-blue-600 transition"
               >
                 RESET GRID
               </button>
+              
               <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase">Unified Layout</span>
-              <div className="relative inline-block w-8 h-4 bg-slate-200 rounded-full">
-                <input 
-                  type="checkbox" 
-                  className="peer sr-only" 
-                  checked={unifiedLayout} 
-                  onChange={(e) => setUnifiedLayout(e.target.checked)} 
-                />
-                <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
-              </div>
-            </label>
+                <span className="text-[10px] font-semibold text-slate-500 uppercase">Lock Grid</span>
+                <div className="relative inline-block w-8 h-4 bg-slate-200 rounded-full">
+                  <input 
+                    type="checkbox" 
+                    className="peer sr-only" 
+                    checked={isGridLocked} 
+                    onChange={(e) => {
+                      setIsGridLocked(e.target.checked);
+                      if (e.target.checked) setPageFractions([]);
+                    }} 
+                  />
+                  <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
+                </div>
+              </label>
             </div>
           </div>
           
