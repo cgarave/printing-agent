@@ -280,7 +280,14 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
           pageUpdate.rowFractions = newFractions;
         } else {
           const newColFracs = pageConfig.colFractions.map(r => [...r]);
-          newColFracs[rowIndex!] = newFractions;
+          if (isGridLocked) {
+             // update all rows
+             newColFracs.forEach((_, rIdx) => {
+               newColFracs[rIdx] = [...newFractions];
+             });
+          } else {
+             newColFracs[rowIndex!] = newFractions;
+          }
           pageUpdate.colFractions = newColFracs;
         }
         
@@ -297,7 +304,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }, [layout, orientation, pageFractions, unifiedLayout, previewRatio]);
+  }, [layout, orientation, pageFractions, unifiedLayout, previewRatio, isGridLocked]);
 
   const renderCellContent = (index: number) => {
     const img = images[index];
@@ -367,7 +374,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                 })}
                 
                 {/* Vertical Dividers scoped to this row */}
-                {!isGridLocked && colOffsets.slice(0, -1).map((offset, i) => (
+                {colOffsets.slice(0, -1).map((offset, i) => (
                   <div 
                     key={`vdiv-${r}-${i}`}
                     className="w-2 bg-blue-500/0 cursor-col-resize absolute top-0 bottom-0 z-10 hover:bg-blue-500/50 transition-all -translate-x-1/2" 
@@ -381,7 +388,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
         </div>
 
         {/* Horizontal Dividers (Rows) */}
-        {!isGridLocked && rowOffsets.slice(0, -1).map((offset, i) => (
+        {rowOffsets.slice(0, -1).map((offset, i) => (
           <div 
             key={`hdiv-${i}`}
             className="h-2 bg-blue-500/0 cursor-row-resize absolute left-0 right-0 z-10 hover:bg-blue-500/50 transition-all -translate-y-1/2" 
@@ -636,7 +643,16 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
                     checked={isGridLocked} 
                     onChange={(e) => {
                       setIsGridLocked(e.target.checked);
-                      if (e.target.checked) setPageFractions([]);
+                      if (e.target.checked) {
+                        setPageFractions(prev => {
+                          if (prev.length === 0) return prev;
+                          return prev.map(page => {
+                            if (!page.colFractions || page.colFractions.length === 0) return page;
+                            const firstRow = page.colFractions[0];
+                            return { ...page, colFractions: page.colFractions.map(() => [...firstRow]) };
+                          });
+                        });
+                      }
                     }} 
                   />
                   <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 peer-checked:bg-blue-500 shadow-sm"></div>
@@ -647,7 +663,7 @@ export default function BatchLayoutView({ initialFile }: { initialFile?: File })
           
           <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
             {layout > 1
-              ? (isGridLocked ? "Grid is locked to perfect even fractions." : "Drag the grid dividers to adjust cell sizes. Columns magnetically snap.")
+              ? (isGridLocked ? "Drag to resize entire columns across all rows." : "Drag the grid dividers to adjust cell sizes independently.")
               : "Image fits inside the bounding cell."}
           </p>
           
