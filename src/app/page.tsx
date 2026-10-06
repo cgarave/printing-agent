@@ -6,16 +6,14 @@ import {
   FileText,
   Settings,
   Printer,
-  Sparkles,
   Layers,
-  HelpCircle,
-  ExternalLink,
 } from 'lucide-react';
 import A4GangSheet from '@/components/id-photo/A4GangSheet';
 import DocEncoderView from '@/components/doc-encoder/DocEncoderView';
 import SettingsModal from '@/components/settings/SettingsModal';
+import BatchLayoutView from '@/components/batch-layout/BatchLayoutView';
 
-type ActiveTab = 'id_photos' | 'doc_encoder';
+type ActiveTab = 'id_photos' | 'doc_encoder' | 'batch_layout';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('id_photos');
@@ -77,6 +75,18 @@ export default function Home() {
               <FileText className="w-4 h-4" />
               Document Encoder
             </button>
+            
+            <button
+              onClick={() => setActiveTab('batch_layout')}
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'batch_layout'
+                  ? 'bg-white text-blue-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              Batch Layout
+            </button>
           </nav>
 
           {/* Right Action: Settings */}
@@ -95,7 +105,9 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'id_photos' ? <A4GangSheet /> : <DocEncoderView />}
+        {activeTab === 'id_photos' ? <A4GangSheet /> : 
+         activeTab === 'doc_encoder' ? <DocEncoderView /> :
+         <BatchLayoutView />}
       </main>
 
       {/* Counter Operator Footer */}
@@ -104,7 +116,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-700">Printing Agent</span>
             <span>•</span>
-            <span>ID Photos & Document Encoding</span>
+            <span>ID Photos, Document Encoding, & Batch Print</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono text-[11px]">
