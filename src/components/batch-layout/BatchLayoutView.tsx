@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { UploadCloud, Layers, Trash2, Printer, Download, X } from 'lucide-react';
 import JSZip from 'jszip';
-import { generateBatchPdf, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
+import { generateBatchPdf, getGridLayoutConfig, PaperSize, LayoutOption, Orientation } from '@/lib/batch-pdf-generator';
 
 export default function BatchLayoutView() {
   const [images, setImages] = useState<string[]>([]);
@@ -27,7 +27,10 @@ export default function BatchLayoutView() {
     else if (layout === 2) setGridFractions([0.5, 0.5]);
     else if (layout === 3) setGridFractions([0.333, 0.333, 0.334]);
     else if (layout === 4) setGridFractions([0.5, 0.5]); // [row split, col split]
+    else setGridFractions([0.5, 0.5]);
   }, [layout]);
+
+  const config = getGridLayoutConfig(layout, orientation, gridFractions);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -207,16 +210,22 @@ export default function BatchLayoutView() {
             <option value={2}>2 per page</option>
             <option value={3}>3 per page</option>
             <option value={4}>4 per page (2x2)</option>
+            <option value={5}>5 per page</option>
+            <option value={6}>6 per page</option>
+            <option value={7}>7 per page</option>
+            <option value={8}>8 per page</option>
+            <option value={9}>9 per page (3x3)</option>
+            <option value={10}>10 per page</option>
           </select>
 
-          {layout > 1 && layout < 4 && (
+          {(layout === 2 || layout === 3 || layout === 5 || layout === 6 || layout === 7 || layout === 8 || layout === 10) && (
             <select 
               value={orientation} 
               onChange={(e) => setOrientation(e.target.value as Orientation)}
               className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 font-medium text-slate-700"
             >
-              <option value="vertical">Vertical Split</option>
-              <option value="horizontal">Horizontal Split</option>
+              <option value="vertical">Vertical Split ({getGridLayoutConfig(layout, 'vertical').cols}×{getGridLayoutConfig(layout, 'vertical').rows})</option>
+              <option value="horizontal">Horizontal Split ({getGridLayoutConfig(layout, 'horizontal').cols}×{getGridLayoutConfig(layout, 'horizontal').rows})</option>
             </select>
           )}
 
@@ -326,7 +335,11 @@ export default function BatchLayoutView() {
         <div className="w-full md:w-80 flex-shrink-0 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col items-center">
           <h3 className="font-semibold text-slate-800 text-sm w-full mb-4">Layout Preview</h3>
           <p className="text-[10px] text-slate-500 w-full mb-4 leading-tight text-center">
-            {layout > 1 ? "Drag the dividers to adjust cell sizes." : "Images fit inside the bounding cell."}
+            {layout > 1 && layout <= 4
+              ? "Drag the dividers to adjust cell sizes."
+              : layout > 4
+              ? `${layout} images per page in a ${config.cols}×${config.rows} grid.`
+              : "Image fits inside the bounding cell."}
           </p>
           
           {/* Interactive Paper Preview */}
@@ -339,7 +352,7 @@ export default function BatchLayoutView() {
               display: 'flex',
               flexDirection: (layout === 4 || orientation === 'vertical') ? 'column' : 'row',
               padding: `${margin * (200 / 210)}px`,
-              gap: layout === 4 ? 0 : `${gap * (200 / 210)}px`
+              gap: (layout === 4 || layout >= 5) ? 0 : `${gap * (200 / 210)}px`
             }}
           >
             {/* Generate CSS Grid or Flexboxes for the preview based on layout and fractions */}
@@ -464,6 +477,27 @@ export default function BatchLayoutView() {
                   style={{ left: `calc(${margin * (200 / 210)}px + ${gridFractions[1]} * (100% - ${margin * 2 * (200 / 210)}px))` }}
                   onMouseDown={(e) => handleDividerDrag(e, 0, 'vertical')}
                 />
+              </div>
+            )}
+
+            {layout >= 5 && (
+              <div 
+                className="w-full h-full"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${config.cols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${config.rows}, minmax(0, 1fr))`,
+                  gap: `${gap * (200 / 210)}px`,
+                }}
+              >
+                {Array.from({ length: layout }).map((_, slot) => (
+                  <div 
+                    key={slot}
+                    className="border border-blue-400 border-dashed bg-blue-50/50 flex items-center justify-center rounded-xs"
+                  >
+                    <span className="text-slate-400 text-[10px] font-mono">{slot + 1}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

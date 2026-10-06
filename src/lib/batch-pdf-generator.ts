@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 
 export type PaperSize = 'a4' | 'letter' | 'legal';
-export type LayoutOption = 1 | 2 | 3 | 4;
+export type LayoutOption = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type Orientation = 'vertical' | 'horizontal';
 
 const PAPER_DIMENSIONS: Record<PaperSize, { width: number; height: number }> = {
@@ -9,6 +9,145 @@ const PAPER_DIMENSIONS: Record<PaperSize, { width: number; height: number }> = {
   letter: { width: 215.9, height: 279.4 },
   legal: { width: 215.9, height: 330.2 }, 
 };
+
+export interface GridLayoutConfig {
+  cols: number;
+  rows: number;
+  colFractions: number[];
+  rowFractions: number[];
+}
+
+export function getGridLayoutConfig(
+  layout: LayoutOption,
+  orientation: Orientation,
+  gridFractions: number[] = [0.5, 0.5]
+): GridLayoutConfig {
+  if (layout === 1) {
+    return {
+      cols: 1,
+      rows: 1,
+      colFractions: [1],
+      rowFractions: [1],
+    };
+  }
+
+  if (layout === 2) {
+    if (orientation === 'vertical') {
+      return {
+        cols: 1,
+        rows: 2,
+        colFractions: [1],
+        rowFractions: gridFractions.length >= 2 ? [gridFractions[0], gridFractions[1]] : [0.5, 0.5],
+      };
+    } else {
+      return {
+        cols: 2,
+        rows: 1,
+        colFractions: gridFractions.length >= 2 ? [gridFractions[0], gridFractions[1]] : [0.5, 0.5],
+        rowFractions: [1],
+      };
+    }
+  }
+
+  if (layout === 3) {
+    if (orientation === 'vertical') {
+      return {
+        cols: 1,
+        rows: 3,
+        colFractions: [1],
+        rowFractions: gridFractions.length >= 3 ? gridFractions : [0.3333, 0.3333, 0.3334],
+      };
+    } else {
+      return {
+        cols: 3,
+        rows: 1,
+        colFractions: gridFractions.length >= 3 ? gridFractions : [0.3333, 0.3333, 0.3334],
+        rowFractions: [1],
+      };
+    }
+  }
+
+  if (layout === 4) {
+    const row0 = gridFractions[0] || 0.5;
+    const col0 = gridFractions[1] || 0.5;
+    return {
+      cols: 2,
+      rows: 2,
+      colFractions: [col0, 1 - col0],
+      rowFractions: [row0, 1 - row0],
+    };
+  }
+
+  if (layout === 5 || layout === 6) {
+    if (orientation === 'vertical') {
+      return {
+        cols: 2,
+        rows: 3,
+        colFractions: [0.5, 0.5],
+        rowFractions: [1 / 3, 1 / 3, 1 / 3],
+      };
+    } else {
+      return {
+        cols: 3,
+        rows: 2,
+        colFractions: [1 / 3, 1 / 3, 1 / 3],
+        rowFractions: [0.5, 0.5],
+      };
+    }
+  }
+
+  if (layout === 7 || layout === 8) {
+    if (orientation === 'vertical') {
+      return {
+        cols: 2,
+        rows: 4,
+        colFractions: [0.5, 0.5],
+        rowFractions: [0.25, 0.25, 0.25, 0.25],
+      };
+    } else {
+      return {
+        cols: 4,
+        rows: 2,
+        colFractions: [0.25, 0.25, 0.25, 0.25],
+        rowFractions: [0.5, 0.5],
+      };
+    }
+  }
+
+  if (layout === 9) {
+    return {
+      cols: 3,
+      rows: 3,
+      colFractions: [1 / 3, 1 / 3, 1 / 3],
+      rowFractions: [1 / 3, 1 / 3, 1 / 3],
+    };
+  }
+
+  if (layout === 10) {
+    if (orientation === 'vertical') {
+      return {
+        cols: 2,
+        rows: 5,
+        colFractions: [0.5, 0.5],
+        rowFractions: [0.2, 0.2, 0.2, 0.2, 0.2],
+      };
+    } else {
+      return {
+        cols: 5,
+        rows: 2,
+        colFractions: [0.2, 0.2, 0.2, 0.2, 0.2],
+        rowFractions: [0.5, 0.5],
+      };
+    }
+  }
+
+  return {
+    cols: 1,
+    rows: 1,
+    colFractions: [1],
+    rowFractions: [1],
+  };
+}
 
 export async function generateBatchPdf(
   images: string[],
@@ -27,61 +166,44 @@ export async function generateBatchPdf(
     format: [pageWidth, pageHeight],
   });
 
-  const getCellBounds = (index: number): { x: number, y: number, w: number, h: number } => {
-    const usableWidth = pageWidth - margin * 2;
-    const usableHeight = pageHeight - margin * 2;
-    const startX = margin;
-    const startY = margin;
+  const config = getGridLayoutConfig(layout, orientation, gridFractions);
+  const { cols, rows, colFractions, rowFractions } = config;
 
-    if (layout === 1) {
-      return { x: startX, y: startY, w: usableWidth, h: usableHeight };
-    }
-    
-    if (layout === 2) {
-      if (orientation === 'vertical') {
-        const topH = (usableHeight - gap) * gridFractions[0];
-        const botH = (usableHeight - gap) * gridFractions[1];
-        if (index === 0) return { x: startX, y: startY, w: usableWidth, h: topH };
-        if (index === 1) return { x: startX, y: startY + topH + gap, w: usableWidth, h: botH };
-      } else {
-        const leftW = (usableWidth - gap) * gridFractions[0];
-        const rightW = (usableWidth - gap) * gridFractions[1];
-        if (index === 0) return { x: startX, y: startY, w: leftW, h: usableHeight };
-        if (index === 1) return { x: startX + leftW + gap, y: startY, w: rightW, h: usableHeight };
-      }
-    }
-    
-    if (layout === 3) {
-      if (orientation === 'vertical') {
-        const h0 = (usableHeight - gap * 2) * gridFractions[0];
-        const h1 = (usableHeight - gap * 2) * gridFractions[1];
-        const h2 = (usableHeight - gap * 2) * gridFractions[2];
-        if (index === 0) return { x: startX, y: startY, w: usableWidth, h: h0 };
-        if (index === 1) return { x: startX, y: startY + h0 + gap, w: usableWidth, h: h1 };
-        if (index === 2) return { x: startX, y: startY + h0 + h1 + gap * 2, w: usableWidth, h: h2 };
-      } else {
-        const w0 = (usableWidth - gap * 2) * gridFractions[0];
-        const w1 = (usableWidth - gap * 2) * gridFractions[1];
-        const w2 = (usableWidth - gap * 2) * gridFractions[2];
-        if (index === 0) return { x: startX, y: startY, w: w0, h: usableHeight };
-        if (index === 1) return { x: startX + w0 + gap, y: startY, w: w1, h: usableHeight };
-        if (index === 2) return { x: startX + w0 + w1 + gap * 2, y: startY, w: w2, h: usableHeight };
-      }
-    }
+  const usableWidth = pageWidth - margin * 2;
+  const usableHeight = pageHeight - margin * 2;
+  const totalGapW = (cols - 1) * gap;
+  const totalGapH = (rows - 1) * gap;
+  const netWidth = Math.max(0, usableWidth - totalGapW);
+  const netHeight = Math.max(0, usableHeight - totalGapH);
 
-    if (layout === 4) {
-      const row0H = (usableHeight - gap) * gridFractions[0];
-      const row1H = (usableHeight - gap) * (1 - gridFractions[0]);
-      const col0W = (usableWidth - gap) * gridFractions[1];
-      const col1W = (usableWidth - gap) * (1 - gridFractions[1]);
-      
-      if (index === 0) return { x: startX, y: startY, w: col0W, h: row0H }; 
-      if (index === 1) return { x: startX + col0W + gap, y: startY, w: col1W, h: row0H }; 
-      if (index === 2) return { x: startX, y: startY + row0H + gap, w: col0W, h: row1H }; 
-      if (index === 3) return { x: startX + col0W + gap, y: startY + row0H + gap, w: col1W, h: row1H }; 
-    }
-    
-    return { x: startX, y: startY, w: usableWidth, h: usableHeight };
+  // Compute column widths and X offsets
+  const colWidths: number[] = colFractions.map((f) => netWidth * f);
+  const colXOffsets: number[] = [];
+  let currentX = margin;
+  for (let c = 0; c < cols; c++) {
+    colXOffsets.push(currentX);
+    currentX += colWidths[c] + gap;
+  }
+
+  // Compute row heights and Y offsets
+  const rowHeights: number[] = rowFractions.map((f) => netHeight * f);
+  const rowYOffsets: number[] = [];
+  let currentY = margin;
+  for (let r = 0; r < rows; r++) {
+    rowYOffsets.push(currentY);
+    currentY += rowHeights[r] + gap;
+  }
+
+  const getCellBounds = (index: number): { x: number; y: number; w: number; h: number } => {
+    const colIndex = index % cols;
+    const rowIndex = Math.floor(index / cols);
+
+    const x = colXOffsets[colIndex] ?? margin;
+    const y = rowYOffsets[rowIndex] ?? margin;
+    const w = colWidths[colIndex] ?? netWidth;
+    const h = rowHeights[rowIndex] ?? netHeight;
+
+    return { x, y, w, h };
   };
 
   const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -136,4 +258,5 @@ export async function generateBatchPdf(
 
   return doc;
 }
+
 
