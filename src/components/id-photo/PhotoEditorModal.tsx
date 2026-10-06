@@ -617,7 +617,7 @@ export default function PhotoEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden my-6">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden my-6 max-h-[90vh] flex flex-col">
         {/* Modal Header */}
         <div className="border-b border-slate-100 px-6 py-4 bg-white flex items-center justify-between">
           <div>
@@ -702,7 +702,7 @@ export default function PhotoEditorModal({
         </div>
 
         {/* Modal Body */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-y-auto flex-1 min-h-0">
           {/* Left Column: Photo Framing Canvas (7 cols) */}
           <div className="lg:col-span-7 flex flex-col items-center justify-center gap-4">
             {/* Hidden file input */}

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES, PAPER_SIZES } from '@/lib/standard-sizes';
-import { UploadCloud, Image as ImageIcon, Trash2, Printer, Download, Crop, Plus, Minus, X } from 'lucide-react';
+import { UploadCloud, Image as ImageIcon, Trash2, Printer, Download, Crop, Plus, Minus, X, RotateCw } from 'lucide-react';
 import StandardPhotoCropperModal from './StandardPhotoCropperModal';
 import { generateStandardPhotosPdf, calculatePaperLayout } from '@/lib/standard-pdf-generator';
 
@@ -11,6 +11,7 @@ interface PhotoItem {
   originalImage: string;
   croppedImage: string; // The ready-to-print image
   copies: number;
+  rotation: number;
 }
 
 export default function StandardPhotoView({ initialFile }: { initialFile?: File }) {
@@ -33,7 +34,8 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
           id: Math.random().toString(36).substring(7),
           originalImage: url,
           croppedImage: cropped,
-          copies: 1
+          copies: 1,
+          rotation: 0
         }]);
       };
       processFile();
@@ -42,7 +44,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
   }, [initialFile]);
 
   // Helper to auto-crop an image (center cover) to base64
-  const autoCropImage = (src: string, sizeKey: StandardSizeKey): Promise<string> => {
+  const autoCropImage = (src: string, sizeKey: StandardSizeKey, rotation: number = 0): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -61,27 +63,45 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, canvasW, canvasH);
 
-        const imgAspect = img.naturalWidth / img.naturalHeight;
+        // Calculate rotated natural dimensions
+        let naturalW = img.naturalWidth;
+        let naturalH = img.naturalHeight;
+        if (rotation === 90 || rotation === 270) {
+          naturalW = img.naturalHeight;
+          naturalH = img.naturalWidth;
+        }
+
+        const imgAspect = naturalW / naturalH;
         const targetAspect = canvasW / canvasH;
 
         let drawW = canvasW;
         let drawH = canvasH;
-        let offsetX = 0;
-        let offsetY = 0;
 
         if (imgAspect > targetAspect) {
           // Image is wider than target
-          drawW = img.naturalHeight * targetAspect;
-          drawH = img.naturalHeight;
-          offsetX = (img.naturalWidth - drawW) / 2;
+          drawW = naturalH * targetAspect;
+          drawH = naturalH;
         } else {
           // Image is taller than target
-          drawW = img.naturalWidth;
-          drawH = img.naturalWidth / targetAspect;
-          offsetY = (img.naturalHeight - drawH) / 2;
+          drawW = naturalW;
+          drawH = naturalW / targetAspect;
         }
 
-        ctx.drawImage(img, offsetX, offsetY, drawW, drawH, 0, 0, canvasW, canvasH);
+        // Draw the image centered and scaled, applying rotation
+        ctx.save();
+        ctx.translate(canvasW / 2, canvasH / 2);
+        
+        // Scale to fit target dimensions
+        const scale = canvasW / drawW;
+        ctx.scale(scale, scale);
+        
+        // Rotate
+        ctx.rotate((rotation * Math.PI) / 180);
+        
+        // Draw centered
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        
+        ctx.restore();
         resolve(canvas.toDataURL('image/jpeg', 0.95));
       };
       img.onerror = () => resolve(src);
@@ -107,7 +127,8 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
           id: Math.random().toString(36).substring(7),
           originalImage: url,
           croppedImage: cropped,
-          copies: 1
+          copies: 1,
+          rotation: 0,
         }]);
       }
     }
@@ -118,7 +139,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
     setTargetSize(newSize);
     // Re-auto-crop all images to the new target size aspect ratio
     const updated = await Promise.all(photos.map(async p => {
-      const newCropped = await autoCropImage(p.originalImage, newSize);
+      const newCropped = await autoCropImage(p.originalImage, newSize, p.rotation);
       return { ...p, croppedImage: newCropped };
     }));
     setPhotos(updated);
@@ -135,6 +156,14 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
 
   const removePhoto = (id: string) => {
     setPhotos(prev => prev.filter(p => p.id !== id));
+  };
+
+  const rotatePhoto = async (id: string) => {
+    const photo = photos.find(p => p.id === id);
+    if (!photo) return;
+    const newRotation = (photo.rotation + 90) % 360;
+    const newCropped = await autoCropImage(photo.originalImage, targetSize, newRotation);
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, rotation: newRotation, croppedImage: newCropped } : p));
   };
 
   const handleSaveCrop = (croppedBase64: string) => {
@@ -308,6 +337,13 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
                     {/* Hover Actions */}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <button 
+                        onClick={() => rotatePhoto(p.id)}
+                        className="bg-white text-slate-800 p-1.5 rounded-full hover:scale-110 transition"
+                        title="Rotate"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </button>
+                      <button 
                         onClick={() => setEditingPhotoId(p.id)}
                         className="bg-white text-slate-800 p-1.5 rounded-full hover:scale-110 transition"
                         title="Manual Crop"
@@ -419,6 +455,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
         isOpen={editingPhotoId !== null}
         imageUrl={editingPhoto?.originalImage || null}
         targetSizeKey={targetSize}
+        rotation={editingPhoto?.rotation || 0}
         onClose={() => setEditingPhotoId(null)}
         onSave={handleSaveCrop}
       />

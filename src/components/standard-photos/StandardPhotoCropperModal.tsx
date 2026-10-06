@@ -8,6 +8,7 @@ interface StandardPhotoCropperModalProps {
   isOpen: boolean;
   imageUrl: string | null;
   targetSizeKey: StandardSizeKey;
+  rotation: number;
   onClose: () => void;
   onSave: (croppedBase64: string) => void;
 }
@@ -16,11 +17,11 @@ export default function StandardPhotoCropperModal({
   isOpen,
   imageUrl,
   targetSizeKey,
+  rotation,
   onClose,
   onSave,
 }: StandardPhotoCropperModalProps) {
   const [zoom, setZoom] = useState(1);
-  const [rotation, setRotation] = useState(0);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -32,7 +33,6 @@ export default function StandardPhotoCropperModal({
   useEffect(() => {
     if (isOpen && imageUrl) {
       setZoom(1);
-      setRotation(0);
       setPanX(0);
       setPanY(0);
       const img = new Image();
@@ -101,8 +101,13 @@ export default function StandardPhotoCropperModal({
 
     ctx.save();
     
-    // UI base scale to fit the image into the preview frame initially
-    const baseScale = Math.max(frameW / naturalSize.width, frameH / naturalSize.height);
+    let natW = naturalSize.width;
+    let natH = naturalSize.height;
+    if (rotation === 90 || rotation === 270) {
+      natW = naturalSize.height;
+      natH = naturalSize.width;
+    }
+    const baseScale = Math.max(frameW / natW, frameH / natH);
     const displayW = naturalSize.width * baseScale;
     const displayH = naturalSize.height * baseScale;
 
@@ -127,13 +132,24 @@ export default function StandardPhotoCropperModal({
   const frameW = 300;
   const frameH = 300 * (targetSize.heightMm / targetSize.widthMm);
 
-  const baseScale = naturalSize ? Math.max(frameW / naturalSize.width, frameH / naturalSize.height) : 1;
-  const displayW = naturalSize ? naturalSize.width * baseScale : frameW;
-  const displayH = naturalSize ? naturalSize.height * baseScale : frameH;
+  let natW = naturalSize?.width || frameW;
+  let natH = naturalSize?.height || frameH;
+
+  if (rotation === 90 || rotation === 270) {
+    const temp = natW;
+    natW = natH;
+    natH = temp;
+  }
+
+  const baseScale = Math.max(frameW / natW, frameH / natH);
+  // displayW/displayH are the bounds of the bounding box of the unrotated image
+  // but if we just scale it by baseScale, it will be correct since CSS rotate happens after scale.
+  const displayW = (naturalSize?.width || frameW) * baseScale;
+  const displayH = (naturalSize?.height || frameH) * baseScale;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">Crop to {targetSize.label}</h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 transition rounded-full hover:bg-slate-100">
@@ -141,7 +157,7 @@ export default function StandardPhotoCropperModal({
           </button>
         </div>
 
-        <div className="p-6 flex flex-col items-center bg-slate-50/50">
+        <div className="p-6 flex flex-col items-center overflow-y-auto flex-1 bg-slate-50/50">
           <div className="text-xs text-slate-500 mb-4">Drag to pan, scroll to zoom</div>
           
           <div 
@@ -182,18 +198,7 @@ export default function StandardPhotoCropperModal({
             </button>
           </div>
 
-          <div className="flex items-center gap-3 mt-4 w-full max-w-[240px]">
-            <span className="text-xs font-semibold text-slate-500 w-16">Rotate</span>
-            <input 
-              type="range" 
-              min="0" 
-              max="90" 
-              value={rotation} 
-              onChange={(e) => setRotation(Number(e.target.value))}
-              className="flex-1 accent-blue-600 h-1.5 bg-slate-200 rounded-lg appearance-none"
-            />
-            <span className="text-xs font-mono w-8 text-right text-slate-500">{rotation}°</span>
-          </div>
+
         </div>
 
         <div className="border-t border-slate-100 px-6 py-4 flex justify-end gap-3 bg-white">
