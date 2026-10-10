@@ -5,6 +5,7 @@ import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES, PAPER_SIZES } from
 import { UploadCloud, Image as ImageIcon, Trash2, Printer, Download, Crop, Plus, Minus, X, RotateCw } from 'lucide-react';
 import StandardPhotoCropperModal from './StandardPhotoCropperModal';
 import { generateStandardPhotosPdf, calculatePaperLayout } from '@/lib/standard-pdf-generator';
+import { BorderStyle } from '@/lib/print-settings';
 
 interface PhotoItem {
   id: string;
@@ -19,6 +20,8 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
   const [targetSize, setTargetSize] = useState<StandardSizeKey>('4R');
   const [paperSize, setPaperSize] = useState<PaperSizeKey>('a4');
   const [isExporting, setIsExporting] = useState(false);
+  const [cuttingBordersEnabled, setCuttingBordersEnabled] = useState(true);
+  const [cuttingBorderStyle, setCuttingBorderStyle] = useState<BorderStyle>('solid_gray');
 
   const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null);
 
@@ -185,7 +188,7 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
         processedImage: p.croppedImage,
         copies: p.copies
       }));
-      const doc = await generateStandardPhotosPdf(items, targetSize, paperSize);
+      const doc = await generateStandardPhotosPdf(items, targetSize, paperSize, cuttingBordersEnabled, cuttingBorderStyle);
       
       if (print) {
         const blob = doc.output('blob');
@@ -247,6 +250,29 @@ export default function StandardPhotoView({ initialFile }: { initialFile?: File 
               <option value="letter">Letter</option>
               <option value="legal">Legal</option>
             </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={cuttingBordersEnabled}
+                onChange={(e) => setCuttingBordersEnabled(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3 h-3"
+              />
+              Borders
+            </label>
+            {cuttingBordersEnabled && (
+              <select
+                value={cuttingBorderStyle}
+                onChange={(e) => setCuttingBorderStyle(e.target.value as BorderStyle)}
+                className="text-[11px] bg-transparent font-medium text-slate-700 outline-none w-20 cursor-pointer"
+              >
+                <option value="solid_gray">Solid Gray</option>
+                <option value="dashed_gray">Dashed Gray</option>
+                <option value="solid_black">Solid Black</option>
+              </select>
+            )}
           </div>
 
           <div className="h-5 w-px bg-slate-200 mx-1" />

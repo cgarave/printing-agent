@@ -13,6 +13,7 @@ import { CustomerPhotoData, PACKAGE_PRESETS, PhotoFormatCategory, QuadrantId, Qu
 import QuadrantSlot from './QuadrantSlot';
 import PhotoEditorModal from './PhotoEditorModal';
 import { generateA4GangSheetPdf } from '@/lib/pdf-generator';
+import { BorderStyle } from '@/lib/print-settings';
 
 const INITIAL_QUADRANTS: QuadrantSlotState[] = [
   {
@@ -55,6 +56,8 @@ export default function A4GangSheet({ initialFile }: { initialFile?: File }) {
   const [activeEditingSlotId, setActiveEditingSlotId] = useState<QuadrantId | null>(null);
   const [activeEditingFormat, setActiveEditingFormat] = useState<PhotoFormatCategory>('2x2');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [cuttingBordersEnabled, setCuttingBordersEnabled] = useState(true);
+  const [cuttingBorderStyle, setCuttingBorderStyle] = useState<BorderStyle>('solid_gray');
   const [isPresetsOpen, setIsPresetsOpen] = useState(false);
   const presetsRef = useRef<HTMLDivElement>(null);
 
@@ -304,7 +307,7 @@ export default function A4GangSheet({ initialFile }: { initialFile?: File }) {
 
     setIsExportingPdf(true);
     try {
-      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode });
+      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode, cuttingBordersEnabled, cuttingBorderStyle });
       doc.save(`A4_ID_Gang_Sheet_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
       console.error('Failed to export PDF:', err);
@@ -324,7 +327,7 @@ export default function A4GangSheet({ initialFile }: { initialFile?: File }) {
 
     // Generate high-res PDF and open in new print window for exact 100% metric scale!
     try {
-      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode });
+      const doc = await generateA4GangSheetPdf(quadrants, { showQuadrantBorders: true, layoutMode, cuttingBordersEnabled, cuttingBorderStyle });
       const blob = doc.output('blob');
       const blobUrl = URL.createObjectURL(blob);
       const printWindow = window.open(blobUrl, '_blank');
@@ -499,6 +502,32 @@ export default function A4GangSheet({ initialFile }: { initialFile?: File }) {
               <Trash2 className="w-4 h-4" />
             </button>
           )}
+
+          <div className="h-4 w-px bg-slate-200 hidden sm:block mx-0.5" />
+
+          {/* Cutting Borders Controls */}
+          <div className="hidden md:flex items-center gap-2 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60 text-xs text-slate-700">
+            <label className="flex items-center gap-1.5 px-2 cursor-pointer font-medium hover:text-slate-900 transition">
+              <input
+                type="checkbox"
+                checked={cuttingBordersEnabled}
+                onChange={(e) => setCuttingBordersEnabled(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3 h-3"
+              />
+              Borders
+            </label>
+            {cuttingBordersEnabled && (
+              <select
+                value={cuttingBorderStyle}
+                onChange={(e) => setCuttingBorderStyle(e.target.value as BorderStyle)}
+                className="bg-white border border-slate-200 rounded-md py-0.5 px-1 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[11px] font-medium"
+              >
+                <option value="solid_gray">Solid Gray</option>
+                <option value="dashed_gray">Dashed Gray</option>
+                <option value="solid_black">Solid Black</option>
+              </select>
+            )}
+          </div>
 
           <div className="h-4 w-px bg-slate-200 hidden sm:block mx-0.5" />
 

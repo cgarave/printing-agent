@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { applyCuttingBorder, BorderStyle } from './print-settings';
 
 export type PaperSize = 'a4' | 'letter' | 'legal';
 export type LayoutOption = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -116,7 +117,9 @@ export async function generateBatchPdf(
   orientation: Orientation,
   pageFractions: { colFractions?: number[][]; rowFractions?: number[] }[],
   margin: number = 0,
-  gap: number = 0
+  gap: number = 0,
+  cuttingBordersEnabled: boolean = true,
+  cuttingBorderStyle: BorderStyle = 'dashed_gray'
 ): Promise<jsPDF> {
   const { width: pageWidth, height: pageHeight } = PAPER_DIMENSIONS[paperSize];
   
@@ -219,11 +222,7 @@ export async function generateBatchPdf(
         doc.addImage(img, 'PNG', x, y, finalW, finalH, undefined, 'FAST');
       }
 
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.2);
-      doc.setLineDashPattern([2, 2], 0);
-      doc.rect(bounds.x, bounds.y, bounds.w, bounds.h, 'S');
-      doc.setLineDashPattern([], 0); 
+      applyCuttingBorder(doc, bounds.x, bounds.y, bounds.w, bounds.h, cuttingBordersEnabled, cuttingBorderStyle);
     }
     
     pageIndex++;

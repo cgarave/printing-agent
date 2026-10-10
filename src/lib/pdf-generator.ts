@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { QuadrantId, QuadrantSlotState, PrintLayoutMode } from './types';
 import { calculateQuadrantLayout, QUADRANT_WIDTH_MM, QUADRANT_HEIGHT_MM } from './photo-packing';
+import { applyCuttingBorder, BorderStyle } from './print-settings';
 
 export interface QuadrantOffset {
   x: number;
@@ -23,6 +24,8 @@ export async function generateA4GangSheetPdf(
   options?: { 
     showQuadrantBorders?: boolean;
     layoutMode?: PrintLayoutMode;
+    cuttingBordersEnabled?: boolean;
+    cuttingBorderStyle?: BorderStyle;
   }
 ): Promise<jsPDF> {
   const doc = new jsPDF({
@@ -151,9 +154,9 @@ export async function generateA4GangSheetPdf(
       }
 
       // 3. Draw crisp visible cutting guide border around each photo
-      doc.setDrawColor(210, 210, 210);
-      doc.setLineWidth(0.15); // ~0.42pt precision cutting guide border
-      doc.rect(photoX, photoY, item.widthMm, item.heightMm, 'S');
+      const enabled = options?.cuttingBordersEnabled ?? true;
+      const style = options?.cuttingBorderStyle ?? 'solid_gray';
+      applyCuttingBorder(doc, photoX, photoY, item.widthMm, item.heightMm, enabled, style);
     }
   }
 

@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { StandardSizeKey, PaperSizeKey, STANDARD_PHOTO_SIZES, PAPER_SIZES } from './standard-sizes';
+import { applyCuttingBorder, BorderStyle } from './print-settings';
 
 export interface PrintItem {
   id: string;
@@ -55,7 +56,9 @@ export function calculatePaperLayout(targetSizeKey: StandardSizeKey, paperSizeKe
 export async function generateStandardPhotosPdf(
   items: PrintItem[],
   targetSizeKey: StandardSizeKey,
-  paperSizeKey: PaperSizeKey
+  paperSizeKey: PaperSizeKey,
+  cuttingBordersEnabled: boolean = true,
+  cuttingBorderStyle: BorderStyle = 'solid_gray'
 ): Promise<jsPDF> {
   const paper = PAPER_SIZES[paperSizeKey];
   const photoSize = STANDARD_PHOTO_SIZES[targetSizeKey];
@@ -115,9 +118,7 @@ export async function generateStandardPhotosPdf(
       doc.addImage(photoBase64, 'JPEG', x, y, drawW, drawH);
     }
 
-    doc.setDrawColor(210, 210, 210); // subtle gray
-    doc.setLineWidth(0.15);
-    doc.rect(x, y, drawW, drawH);
+    applyCuttingBorder(doc, x, y, drawW, drawH, cuttingBordersEnabled, cuttingBorderStyle);
   }
 
   return doc;
